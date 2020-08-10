@@ -1,0 +1,6 @@
+pardiso.lic 
+.idea/
+__pycache__
+grads_hessian_functions/
+datafiles/
+simDER
