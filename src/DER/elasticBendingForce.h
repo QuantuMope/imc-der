@@ -8,15 +8,15 @@
 class elasticBendingForce
 {
 public:
-	elasticBendingForce(elasticRod &m_rod, timeStepper &m_stepper);
-	~elasticBendingForce();
-	void computeFb();
-	void computeJb();
+    elasticBendingForce(elasticRod &m_rod, timeStepper &m_stepper);
+    ~elasticBendingForce();
+    void computeFb();
+    void computeJb();
 
 private:
 
-	elasticRod *rod;
-	timeStepper *stepper;
+    elasticRod *rod;
+    timeStepper *stepper;
 
     int ci;
     double chi;

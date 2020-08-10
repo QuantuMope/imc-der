@@ -3,20 +3,20 @@
 
 collision::collision(elasticRod &m_rod, timeStepper &m_stepper)
 {
-	rod = &m_rod;
-	stepper = &m_stepper;
+    rod = &m_rod;
+    stepper = &m_stepper;
 }
 
 collision::~collision()
 {
-	;
+    ;
 }
 
 void collision::preparePythonSharedMemory(int iter)
 {
-	// write data to shared memory location
-	// This is inefficient but is okay for now
-	Vector3d curr_u;
+    // write data to shared memory location
+    // This is inefficient but is okay for now
+    Vector3d curr_u;
     Vector3d node;
     if (iter == 0) {
         // velocity only needs to be updated at the start of each time step

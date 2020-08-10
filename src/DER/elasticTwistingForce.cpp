@@ -2,9 +2,9 @@
 
 elasticTwistingForce::elasticTwistingForce(elasticRod &m_rod, timeStepper &m_stepper)
 {
-	rod = &m_rod;
-	stepper = &m_stepper;
-	
+    rod = &m_rod;
+    stepper = &m_stepper;
+
     gradTwist = MatrixXd::Zero(rod->nv,11);
     deltam = VectorXd::Zero(rod->ne);
     theta_f = VectorXd::Zero(rod->ne);
@@ -20,7 +20,7 @@ elasticTwistingForce::elasticTwistingForce(elasticRod &m_rod, timeStepper &m_ste
 
 elasticTwistingForce::~elasticTwistingForce()
 {
-	;
+    ;
 }
 
 void elasticTwistingForce::computeFt()
@@ -57,10 +57,10 @@ void elasticTwistingForce::computeFt()
         ci = 4*i-4;
         f = -value * gradTwist.row(i);
         for (int k = 0; k < 11; k++)
-		{
-			ind = ci + k;
-			stepper->addForce(ind, -f[k]); // subtracting elastic force
-		}
+        {
+            ind = ci + k;
+            stepper->addForce(ind, -f[k]); // subtracting elastic force
+        }
     }
 }
 
@@ -113,9 +113,9 @@ void elasticTwistingForce::computeJt()
         {
             for (int k = 0; k < 11; k++)
             {
-				ind1 = 4*i - 4 + j;
-				ind2 = 4*i - 4 + k;
-				stepper->addJacobian(ind1, ind2, - Jtt(k,j));
+                ind1 = 4*i - 4 + j;
+                ind2 = 4*i - 4 + k;
+                stepper->addJacobian(ind1, ind2, - Jtt(k,j));
 
             }
         }
@@ -126,7 +126,7 @@ void elasticTwistingForce::computeJt()
 // Utility
 void elasticTwistingForce::crossMat(const Vector3d &a,Matrix3d &b)
 {
-	b << 0, -a(2), a(1),
-	     a(2), 0, -a(0),
-	     -a(1), a(0), 0;
+    b << 0, -a(2), a(1),
+         a(2), 0, -a(0),
+         -a(1), a(0), 0;
 }

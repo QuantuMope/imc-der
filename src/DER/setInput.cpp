@@ -5,22 +5,22 @@ using namespace std;
 setInput::setInput()
 {
 
-	AddOption("render", "visualization", render);
-	AddOption("saveData", "should results be saved", saveData);
-	AddOption("RodLength", "length of rod", RodLength);
-	AddOption("helixradius", "Radius of Helix", helixradius);
-	AddOption("helixpitch","Pitch of Helix", helixpitch);
-	AddOption("rodRadius", "Radius of Rod", rodRadius);
-	AddOption("numVertices", "Number of Vertices", numVertices);
-	AddOption("youngM", "Young's Modulus", youngM);
-	AddOption("Poisson", "Poisson Ratio", Poisson);
-	AddOption("deltaTime", "Time Step Length", deltaTime);
-	AddOption("tol", "Tolerance of Newton Method", tol);
-	AddOption("stol", "Ratio between initial and final error", stol);
-	AddOption("maxIter", "Maximum Running Times of Each Stepper", maxIter);
-	AddOption("density", "Density of the Rod", density);
-	AddOption("viscosity", "Viscous Force after wait time", viscosity);
-	AddOption("gVector", "Gravity", gVector);
+    AddOption("render", "visualization", render);
+    AddOption("saveData", "should results be saved", saveData);
+    AddOption("RodLength", "length of rod", RodLength);
+    AddOption("helixradius", "Radius of Helix", helixradius);
+    AddOption("helixpitch","Pitch of Helix", helixpitch);
+    AddOption("rodRadius", "Radius of Rod", rodRadius);
+    AddOption("numVertices", "Number of Vertices", numVertices);
+    AddOption("youngM", "Young's Modulus", youngM);
+    AddOption("Poisson", "Poisson Ratio", Poisson);
+    AddOption("deltaTime", "Time Step Length", deltaTime);
+    AddOption("tol", "Tolerance of Newton Method", tol);
+    AddOption("stol", "Ratio between initial and final error", stol);
+    AddOption("maxIter", "Maximum Running Times of Each Stepper", maxIter);
+    AddOption("density", "Density of the Rod", density);
+    AddOption("viscosity", "Viscous Force after wait time", viscosity);
+    AddOption("gVector", "Gravity", gVector);
     AddOption("pullTime", "Time of pulling", pull_time);
     AddOption("releaseTime", "Time of releasing", release_time);
     AddOption("waitTime", "Time to wait before pulling", wait_time);
@@ -42,7 +42,7 @@ setInput::setInput()
 
 setInput::~setInput()
 {
-	;
+    ;
 }
 
 Option* setInput::GetOption(const string& name)

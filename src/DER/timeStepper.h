@@ -19,41 +19,41 @@ extern "C" void pardiso_printstats (int *, int *, double *, int *, int *, int *,
 class timeStepper
 {
 public:
-	timeStepper(elasticRod &m_rod, int &m_hessian);
-	~timeStepper();
-	double* getForce();
-	double* getJacobian();
-	double* getdx_hess();
-	double* getdx_nohess();
-	void setZero();
-	void addForce(int ind, double p);
-	void addJacobian(int ind1, int ind2, double p);
-	void integrator();
+    timeStepper(elasticRod &m_rod, int &m_hessian);
+    ~timeStepper();
+    double* getForce();
+    double* getJacobian();
+    double* getdx_hess();
+    double* getdx_nohess();
+    void setZero();
+    void addForce(int ind, double p);
+    void addJacobian(int ind1, int ind2, double p);
+    void integrator();
 
-	void pardisoSolver();
+    void pardisoSolver();
 
-	VectorXd force;
+    VectorXd force;
 
-	void update();
+    void update();
 
 private:
-	elasticRod *rod;
-	int kl, ku, freeDOF;
-	
-	double *totalForce;
-	double *jacobian;
-	double *dx;
-	int *hessian;
+    elasticRod *rod;
+    int kl, ku, freeDOF;
 
-	VectorXd Force;
-	MatrixXd Jacobian;
-	
-	// utility variables
-	int mappedInd, mappedInd1, mappedInd2;
-	int row, col, offset;
-	int NUMROWS;
-	int jacobianLen;
-	int nrhs;
+    double *totalForce;
+    double *jacobian;
+    double *dx;
+    int *hessian;
+
+    VectorXd Force;
+    MatrixXd Jacobian;
+
+    // utility variables
+    int mappedInd, mappedInd1, mappedInd2;
+    int row, col, offset;
+    int NUMROWS;
+    int jacobianLen;
+    int nrhs;
     int *ipiv;
     int info;
     int ldb;

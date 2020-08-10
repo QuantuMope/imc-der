@@ -55,22 +55,22 @@ static void Key(unsigned char key, int x, int y)
 {
   switch (key) // ESCAPE to quit
   {
-	case 27:
-	    kill(pid, SIGINT);  // ensure that python server is also killed
-		exit(0);
+    case 27:
+        kill(pid, SIGINT);  // ensure that python server is also killed
+        exit(0);
   }
 }
 
 /* Initialize OpenGL Graphics */
 void initGL() 
 {
-	glClearColor(0.7f, 0.7f, 0.7f, 0.0f);  // Set background color to black and opaque
-	glClearDepth(10.0f);                   // Set background depth to farthest
-	glShadeModel(GL_SMOOTH);               // Enable smooth shading
+    glClearColor(0.7f, 0.7f, 0.7f, 0.0f);  // Set background color to black and opaque
+    glClearDepth(10.0f);                   // Set background depth to farthest
+    glShadeModel(GL_SMOOTH);               // Enable smooth shading
 
-	glLoadIdentity();
-	gluLookAt(0.05, 0.05, 0.1, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0);
-	glPushMatrix();
+    glLoadIdentity();
+    gluLookAt(0.05, 0.05, 0.1, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0);
+    glPushMatrix();
 }
 
 void simulate() {
@@ -98,17 +98,17 @@ void simulate() {
 
 void display(void)
 {
-	double currentTime  = 0;
-	while ( myWorld.simulationRunning() > 0)
-	{
-		//  Clear screen and Z-buffer
-		glClear(GL_COLOR_BUFFER_BIT);
+    double currentTime  = 0;
+    while ( myWorld.simulationRunning() > 0)
+    {
+        //  Clear screen and Z-buffer
+        glClear(GL_COLOR_BUFFER_BIT);
 
-		// draw axis
-		double axisLen = 1;
-		glLineWidth(0.5);
-		
-		glBegin(GL_LINES);
+        // draw axis
+        double axisLen = 1;
+        glLineWidth(0.5);
+
+        glBegin(GL_LINES);
 
         glColor3f(1.0, 0.0, 0.0);
         glVertex3f(0.0, 0.0, 0.0);
@@ -122,39 +122,39 @@ void display(void)
         glVertex3f(0.0, 0.0, 0.0);
         glVertex3f(0.0, 0.0, axisLen);
 
-		glEnd();
-		
-		//draw a line
-		glColor3f(0.1, 0.1, 0.1);
-		glLineWidth(4.0);
-		
-		glBegin(GL_LINES);
-		for (int i=0; i < NPTS-1; i++)
-		{
-			glVertex3f( myWorld.getScaledCoordinate(4*i), myWorld.getScaledCoordinate(4*i+1), myWorld.getScaledCoordinate(4*i+2));
-			glVertex3f( myWorld.getScaledCoordinate(4*(i+1)), myWorld.getScaledCoordinate(4*(i+1)+1), myWorld.getScaledCoordinate(4*(i+1)+2));
-		}
-		glEnd();
-		
-		glFlush();
+        glEnd();
 
-		simulate();
-	}
+        //draw a line
+        glColor3f(0.1, 0.1, 0.1);
+        glLineWidth(4.0);
+
+        glBegin(GL_LINES);
+        for (int i=0; i < NPTS-1; i++)
+        {
+            glVertex3f( myWorld.getScaledCoordinate(4*i), myWorld.getScaledCoordinate(4*i+1), myWorld.getScaledCoordinate(4*i+2));
+            glVertex3f( myWorld.getScaledCoordinate(4*(i+1)), myWorld.getScaledCoordinate(4*(i+1)+1), myWorld.getScaledCoordinate(4*(i+1)+2));
+        }
+        glEnd();
+
+        glFlush();
+
+        simulate();
+    }
 }
 
 int main(int argc,char *argv[])
 {
-	setInput inputData;
-	inputData = setInput();
-	inputData.LoadOptions(argv[1]);
-	inputData.LoadOptions(argc,argv);
+    setInput inputData;
+    inputData = setInput();
+    inputData.LoadOptions(argv[1]);
+    inputData.LoadOptions(argc,argv);
 
     // Setup shared memory
     int num_nodes = inputData.GetIntOpt("numVertices");
     int nv = num_nodes * 3;
-	int hess_size = nv * nv;
-	int meta_data_size = 6;
-	string port_no = to_string(inputData.GetIntOpt("port"));
+    int hess_size = nv * nv;
+    int meta_data_size = 6;
+    string port_no = to_string(inputData.GetIntOpt("port"));
 
     int nc_fd = shm_open(("node_coordinates" + port_no).c_str(), O_CREAT | O_RDWR, 0666);
     int ve_fd = shm_open(("velocities" + port_no).c_str(), O_CREAT | O_RDWR, 0666);
@@ -176,42 +176,42 @@ int main(int argc,char *argv[])
         cout << "Failed to truncate shared memory" << endl;
         exit(1);
     }
-	node_coordinates = (double*)mmap(NULL, sizeof(double)*nv, PROT_WRITE, MAP_SHARED, nc_fd, 0);
-	velocities = (double*)mmap(NULL, sizeof(double)*nv, PROT_WRITE, MAP_SHARED, ve_fd, 0);
-	meta_data = (double*)mmap(NULL, sizeof(double)*meta_data_size, PROT_WRITE, MAP_SHARED, me_fd, 0);
-	contact_forces = (double*)mmap(NULL, sizeof(double)*nv, PROT_READ, MAP_SHARED, cf_fd, 0);
-	contact_hessian = (double*)mmap(NULL, sizeof(double)*hess_size, PROT_READ, MAP_SHARED, ch_fd, 0);
+    node_coordinates = (double*)mmap(NULL, sizeof(double)*nv, PROT_WRITE, MAP_SHARED, nc_fd, 0);
+    velocities = (double*)mmap(NULL, sizeof(double)*nv, PROT_WRITE, MAP_SHARED, ve_fd, 0);
+    meta_data = (double*)mmap(NULL, sizeof(double)*meta_data_size, PROT_WRITE, MAP_SHARED, me_fd, 0);
+    contact_forces = (double*)mmap(NULL, sizeof(double)*nv, PROT_READ, MAP_SHARED, cf_fd, 0);
+    contact_hessian = (double*)mmap(NULL, sizeof(double)*hess_size, PROT_READ, MAP_SHARED, ch_fd, 0);
 
-	if (node_coordinates == MAP_FAILED ||
-	    velocities == MAP_FAILED ||
-	    meta_data == MAP_FAILED ||
-	    contact_forces == MAP_FAILED ||
-	    contact_hessian == MAP_FAILED)
-	{
-	    cout << "Failed to map shared memory for writing" << endl;
-	    exit(1);
-	}
-
-	//read input parameters from txt file and cmd
-	myWorld = world(inputData);
-	myWorld.setRodStepper();
-
-	myWorld.OpenFile(pull_data, "pull_data");
-	record_nodes = inputData.GetIntOpt("recordNodes");
-	record_nodes_start = inputData.GetScalarOpt("recordNodesStart");
-	record_nodes_end = inputData.GetScalarOpt("recordNodesEnd");
-    if (record_nodes) {
-	    myWorld.OpenFile(node_data, "node_data");
+    if (node_coordinates == MAP_FAILED ||
+        velocities == MAP_FAILED ||
+        meta_data == MAP_FAILED ||
+        contact_forces == MAP_FAILED ||
+        contact_hessian == MAP_FAILED)
+    {
+        cout << "Failed to map shared memory for writing" << endl;
+        exit(1);
     }
 
-	const char* port = to_string(inputData.GetIntOpt("port")).c_str();
-	const char* col = to_string(inputData.GetScalarOpt("col")).c_str();
-	const char* con = to_string(inputData.GetScalarOpt("con")).c_str();
-	const char* ce_k = to_string(inputData.GetScalarOpt("ce_k")).c_str();
-	const char* mu_k = to_string(inputData.GetScalarOpt("mu_k")).c_str();
-	const char* S = to_string(inputData.GetScalarOpt("S")).c_str();
-	const char* radius = to_string(inputData.GetScalarOpt("rodRadius")).c_str();
-	const char* nv_py = to_string(inputData.GetIntOpt("numVertices")).c_str();
+    //read input parameters from txt file and cmd
+    myWorld = world(inputData);
+    myWorld.setRodStepper();
+
+    myWorld.OpenFile(pull_data, "pull_data");
+    record_nodes = inputData.GetIntOpt("recordNodes");
+    record_nodes_start = inputData.GetScalarOpt("recordNodesStart");
+    record_nodes_end = inputData.GetScalarOpt("recordNodesEnd");
+    if (record_nodes) {
+        myWorld.OpenFile(node_data, "node_data");
+    }
+
+    const char* port = to_string(inputData.GetIntOpt("port")).c_str();
+    const char* col = to_string(inputData.GetScalarOpt("col")).c_str();
+    const char* con = to_string(inputData.GetScalarOpt("con")).c_str();
+    const char* ce_k = to_string(inputData.GetScalarOpt("ce_k")).c_str();
+    const char* mu_k = to_string(inputData.GetScalarOpt("mu_k")).c_str();
+    const char* S = to_string(inputData.GetScalarOpt("S")).c_str();
+    const char* radius = to_string(inputData.GetScalarOpt("rodRadius")).c_str();
+    const char* nv_py = to_string(inputData.GetIntOpt("numVertices")).c_str();
 
     cout << "Input parameters to python" << endl;
     cout << "port " << port << " col " << col << " con " << con << " ce_k " << ce_k << endl;
@@ -239,32 +239,32 @@ int main(int argc,char *argv[])
     cout << "Connecting to Python server..." << endl;
     socket.connect(server_addr + port);
 
-	bool render = myWorld.isRender();
-	if (render) // if OpenGL visualization is on
-	{
-		NPTS = myWorld.numPoints();
-	
-		glutInit(&argc,argv);
-		glutInitDisplayMode (GLUT_SINGLE | GLUT_RGB);
-		glutInitWindowSize (1000, 1000);
-		glutInitWindowPosition (100, 100);
-		glutCreateWindow ("simDER");
-		initGL();
-		glutKeyboardFunc(Key);
-		glutDisplayFunc(display);
-		glutMainLoop();
-	}
-	else
-	{
-		while ( myWorld.simulationRunning() > 0)
-		{
-            simulate();
-		}
-	}
+    bool render = myWorld.isRender();
+    if (render) // if OpenGL visualization is on
+    {
+        NPTS = myWorld.numPoints();
 
-	// Close (if necessary) the data file
-	myWorld.CloseFile(pull_data);
-	
-	return 0;
+        glutInit(&argc,argv);
+        glutInitDisplayMode (GLUT_SINGLE | GLUT_RGB);
+        glutInitWindowSize (1000, 1000);
+        glutInitWindowPosition (100, 100);
+        glutCreateWindow ("simDER");
+        initGL();
+        glutKeyboardFunc(Key);
+        glutDisplayFunc(display);
+        glutMainLoop();
+    }
+    else
+    {
+        while ( myWorld.simulationRunning() > 0)
+        {
+            simulate();
+        }
+    }
+
+    // Close (if necessary) the data file
+    myWorld.CloseFile(pull_data);
+
+    return 0;
 }
 

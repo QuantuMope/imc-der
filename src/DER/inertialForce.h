@@ -8,15 +8,15 @@
 class inertialForce
 {
 public:
-	inertialForce(elasticRod &m_rod, timeStepper &m_stepper);
-	~inertialForce();
-	void computeFi();
-	void computeJi();
+    inertialForce(elasticRod &m_rod, timeStepper &m_stepper);
+    ~inertialForce();
+    void computeFi();
+    void computeJi();
 
 private:
-	elasticRod *rod;
-	timeStepper *stepper;
-    			
+    elasticRod *rod;
+    timeStepper *stepper;
+
     int ind1, ind2, mappedInd1, mappedInd2;	
     double f, jac;
 };

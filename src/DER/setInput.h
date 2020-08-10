@@ -22,7 +22,7 @@ public:
   ~setInput();
 
   template <typename T>
-	int AddOption(const std::string& name, const std::string& desc, const T& def);
+    int AddOption(const std::string& name, const std::string& desc, const T& def);
 
   Option* GetOption(const std::string& name);
   bool& GetBoolOpt(const std::string& name);
@@ -39,39 +39,39 @@ public:
   int LoadOptions(int argc, char** argv);
 
 private:
-	double RodLength;
-	double helixradius;
-	double helixpitch;
-	double rodRadius;
-	int numVertices;
-	double youngM;
-	double Poisson;
-	double shearM;
-	double deltaTime;
-	double tol, stol;
-	int maxIter; // maximum number of iterations
-	double density;
-	Vector3d gVector;
-	double viscosity;
-	bool render;
-	bool saveData;
-	double pull_time;
-	double release_time;
-	double wait_time;
-	double pull_speed;
-	int friction;
-	int port;
-	double col;
-	double con;
-	double ce_k;
-	double mu_k;
-	double S;
-	int limit;
-	int contact_mode;
-	int record_nodes;
-	double record_nodes_start;
-	double record_nodes_end;
-	string knot_config;
+    double RodLength;
+    double helixradius;
+    double helixpitch;
+    double rodRadius;
+    int numVertices;
+    double youngM;
+    double Poisson;
+    double shearM;
+    double deltaTime;
+    double tol, stol;
+    int maxIter; // maximum number of iterations
+    double density;
+    Vector3d gVector;
+    double viscosity;
+    bool render;
+    bool saveData;
+    double pull_time;
+    double release_time;
+    double wait_time;
+    double pull_speed;
+    int friction;
+    int port;
+    double col;
+    double con;
+    double ce_k;
+    double mu_k;
+    double S;
+    int limit;
+    int contact_mode;
+    int record_nodes;
+    double record_nodes_start;
+    double record_nodes_end;
+    string knot_config;
 };
 
 #include "setInput.tcc"

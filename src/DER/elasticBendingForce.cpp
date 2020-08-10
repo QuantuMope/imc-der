@@ -2,26 +2,26 @@
 
 elasticBendingForce::elasticBendingForce(elasticRod &m_rod, timeStepper &m_stepper)
 {
-	rod = &m_rod;
-	stepper = &m_stepper;
+    rod = &m_rod;
+    stepper = &m_stepper;
 
-	Id3 << 1, 0, 0,
+    Id3 << 1, 0, 0,
            0, 1, 0,
            0, 0, 1;
 
-	double EI = rod->EI;
+    double EI = rod->EI;
 
     EIMat << EI, 0,
              0, EI;
 
-	int nv = rod->nv;
+    int nv = rod->nv;
     gradKappa1 = MatrixXd::Zero(nv,11);
     gradKappa2 = MatrixXd::Zero(nv,11);
     relevantPart = MatrixXd::Zero(11, 2);;
     DDkappa1 = MatrixXd::Zero(11,11);
     DDkappa2 = MatrixXd::Zero(11,11);
     Jbb = MatrixXd::Zero(11,11);
-    
+
     D2kappa1De2.setZero(3,3);
     D2kappa1Df2.setZero(3,3);
     D2kappa1DeDf.setZero(3,3);
@@ -35,7 +35,7 @@ elasticBendingForce::elasticBendingForce(elasticRod &m_rod, timeStepper &m_stepp
 
 elasticBendingForce::~elasticBendingForce()
 {
-	;
+    ;
 }
 
 void elasticBendingForce::computeFb()
@@ -89,16 +89,16 @@ void elasticBendingForce::computeFb()
         f = - relevantPart * EIMat * kappaL / rod->voronoiLen(i);
 
         for (int k = 0; k < 11; k++)
-		{
-			int ind = ci + k;
-			stepper->addForce(ind, -f[k]); // subtracting elastic force
-		}
+        {
+            int ind = ci + k;
+            stepper->addForce(ind, -f[k]); // subtracting elastic force
+        }
     }
 }
 
 void elasticBendingForce::computeJb()
 {
-	for (int i = 1; i < rod->ne; i++)
+    for (int i = 1; i < rod->ne; i++)
     {
         norm_e = rod->edgeLen(i-1);
         norm_f = rod->edgeLen(i);
@@ -121,7 +121,7 @@ void elasticBendingForce::computeJb()
         kappa2 = rod->kappa(i,1);
 
         kbLocal = (rod->kb).row(i);
-		
+
         tt_o_tt = tilde_t * tilde_t.transpose();
 
         crossMat(tilde_d1,tilde_d1_3d);
@@ -179,7 +179,7 @@ void elasticBendingForce::computeJb()
 
         D2kappa2DeDf
         = -kappa2/(chi * norm_e * norm_f) * (Id3 + te*tf.transpose())
-        + 1.0 / (norm_e*norm_f) * (2 * kappa2 * tt_o_tt + tf_c_d1t_o_tt 
+        + 1.0 / (norm_e*norm_f) * (2 * kappa2 * tt_o_tt + tf_c_d1t_o_tt
         - tt_o_te_c_d1t + tilde_d1_3d);
 
         D2kappa2DfDe = D2kappa2DeDf.transpose();
@@ -190,22 +190,22 @@ void elasticBendingForce::computeJb()
         D2kappa2Dthetaf2 =  0.5 * kbLocal.dot(d1f);
 
         D2kappa1DeDthetae
-        = 1.0 / norm_e * ((0.5 * kbLocal.dot(d1e)) * tilde_t 
+        = 1.0 / norm_e * ((0.5 * kbLocal.dot(d1e)) * tilde_t
         - 1.0 / chi * (tf.cross(d1e)));
         D2kappa1DeDthetaf
         = 1.0 / norm_e * ((0.5 * kbLocal.dot(d1f)) * tilde_t
         - 1.0 / chi * (tf.cross(d1f)));
         D2kappa1DfDthetae
-        = 1.0 / norm_f * ((0.5 * kbLocal.dot(d1e)) * tilde_t 
+        = 1.0 / norm_f * ((0.5 * kbLocal.dot(d1e)) * tilde_t
         + 1.0 / chi * (te.cross(d1e)));
         D2kappa1DfDthetaf
-        = 1.0 / norm_f * ((0.5 * kbLocal.dot(d1f)) * tilde_t 
+        = 1.0 / norm_f * ((0.5 * kbLocal.dot(d1f)) * tilde_t
         + 1.0 / chi * (te.cross(d1f)));
         D2kappa2DeDthetae
         = 1.0 / norm_e * ((0.5 * kbLocal.dot(d2e)) * tilde_t
         - 1.0 / chi * (tf.cross(d2e)));
         D2kappa2DeDthetaf
-        = 1.0 / norm_e * ((0.5 * kbLocal.dot(d2f)) * tilde_t 
+        = 1.0 / norm_e * ((0.5 * kbLocal.dot(d2f)) * tilde_t
         - 1.0 / chi * (tf.cross(d2f)));
         D2kappa2DfDthetae
         = 1.0 / norm_f * ((0.5 * kbLocal.dot(d2e)) * tilde_t
@@ -277,16 +277,16 @@ void elasticBendingForce::computeJb()
         kappaL = (rod->kappa).row(i) - (rod->kappaBar).row(i);
 
         temp = - 1.0 / len * kappaL.transpose() * EIMat;
-        
+
         Jbb = Jbb + temp(0) * DDkappa1 + temp(1) * DDkappa2;
 
-		for (int j = 0; j < 11; j++)
+        for (int j = 0; j < 11; j++)
         {
             for (int k = 0; k < 11; k++)
             {
-				int ind1 = 4 * i - 4 + j;
-				int ind2 = 4 * i - 4 + k;
-				stepper->addJacobian(ind1, ind2, - Jbb(k,j));
+                int ind1 = 4 * i - 4 + j;
+                int ind2 = 4 * i - 4 + k;
+                stepper->addJacobian(ind1, ind2, - Jbb(k,j));
             }
         }
     }
@@ -295,7 +295,7 @@ void elasticBendingForce::computeJb()
 // Utility
 void elasticBendingForce::crossMat(const Vector3d &a,Matrix3d &b)
 {
-	b << 0, -a(2), a(1),
-	     a(2), 0, -a(0),
-	     -a(1), a(0), 0;
+    b << 0, -a(2), a(1),
+         a(2), 0, -a(0),
+         -a(1), a(0), 0;
 }

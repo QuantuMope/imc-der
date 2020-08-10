@@ -8,16 +8,16 @@
 class elasticStretchingForce
 {
 public:
-	elasticStretchingForce(elasticRod &m_rod, timeStepper &m_stepper);
-	~elasticStretchingForce();
-	void computeFs();
-	void computeJs();
+    elasticStretchingForce(elasticRod &m_rod, timeStepper &m_stepper);
+    ~elasticStretchingForce();
+    void computeFs();
+    void computeJs();
 
 private:
-	elasticRod *rod;
-	timeStepper *stepper;
-	
-	double len, refLength;
+    elasticRod *rod;
+    timeStepper *stepper;
+
+    double len, refLength;
     double epsX;
     Vector3d u;
     Vector3d dxx;
