@@ -118,10 +118,10 @@ def second_grads_and_hessian(ce_k, h2, k1=50.0, k2=50.0):
     d1 = sy.symarray('d1', 3)
     d2 = sy.symarray('d2', 3)
     d12 = sy.symarray('d12', 3)
-    D1, D2, R, S1, S2, t2, den = sy.symbols('D1, D2, R, S1, S2, t2, den')
+    D1, D2, R, S1, S2, t2 = sy.symbols('D1, D2, R, S1, S2, t2')
 
     # Second half of min-distance algorithm
-    u1 = sy.Piecewise((((t2 * R - S2) / D2), sy.Ne(den, 0.0)), ((-S2 / D2), True))
+    u1 = (t2 * R - S2) / D2
     u2 = approx_fixbound_sy(u1, k=k1)
     t3 = (1 - boxcar_func_sy(u1, k=k2)) * approx_fixbound_sy(((u2 * R + S1) / D1), k=k1) + boxcar_func_sy(u1, k=k2) * t2
     dist1 = (d1 * t3 - d2 * u2 - d12)
@@ -129,8 +129,7 @@ def second_grads_and_hessian(ce_k, h2, k1=50.0, k2=50.0):
     E = sy.log(1 + sy.exp(ce_k * (h2 - dist)))
 
     # Create min-distance function with secondary input vals as input
-    wrt    = [*d1, *d2, *d12, D1, D2, R, S1, S2, t2]
-    inputs = [*d1, *d2, *d12, D1, D2, R, S1, S2, t2, den]
+    inputs = wrt = [*d1, *d2, *d12, D1, D2, R, S1, S2, t2]
 
     # Compute dE/dd1 | dE/dd2 | dE/dd12 are all (1x3)
     # dE/dD1 | dE/dD2 | dE/dR | dE/S1 | dE/S2 | dE/t2 are all scalars

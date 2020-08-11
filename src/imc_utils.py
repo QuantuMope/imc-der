@@ -72,7 +72,7 @@ def min_dist_vectorized(edges):
 def min_dist_f_out_vectorized(edges, k=50.0):
     assert edges.shape[1] == 12
     num_inputs = edges.shape[0]
-    f_out_vals = np.zeros((num_inputs, 16), dtype=np.float64)
+    f_out_vals = np.zeros((num_inputs, 15), dtype=np.float64)
     x1s, x1e, x2s, x2e = edges[:, :3], edges[:, 3:6], edges[:, 6:9], edges[:, 9:]
     f_out_vals[:, :3] = d1 = x1e - x1s
     f_out_vals[:, 3:6] = d2 = x2e - x2s
@@ -82,7 +82,7 @@ def min_dist_f_out_vectorized(edges, k=50.0):
     f_out_vals[:, 11] = R = np.sum(np.multiply(d1, d2), axis=1)  # R
     f_out_vals[:, 12] = S1 = np.sum(np.multiply(d1, d12), axis=1)  # S1
     f_out_vals[:, 13] = S2 = np.sum(np.multiply(d2, d12), axis=1)  # S2
-    f_out_vals[:, 15] = den = D1 * D2 - R ** 2
+    den = D1 * D2 - R ** 2
     t = np.zeros((num_inputs,))
     non_parallels = den != 0
     t[non_parallels] = ((S1 * D2 - S2 * R) / den)[non_parallels]
