@@ -47,8 +47,7 @@ double record_nodes_start;
 double record_nodes_end;
 
 void kill_server(int sig_nm) {
-    kill(pid, SIGINT);
-    exit(1);
+    kill(pid, SIGTERM); // kill child before exiting
 }
 
 static void Key(unsigned char key, int x, int y)
@@ -56,7 +55,7 @@ static void Key(unsigned char key, int x, int y)
   switch (key) // ESCAPE to quit
   {
     case 27:
-        kill(pid, SIGINT);  // ensure that python server is also killed
+        kill(pid, SIGTERM);  // kill child before exiting
         exit(0);
   }
 }
@@ -140,6 +139,9 @@ void display(void)
 
         simulate();
     }
+    myWorld.CloseFile(pull_data);
+    kill(pid, SIGTERM); // kill child before exiting
+    exit(0);
 }
 
 int main(int argc,char *argv[])
@@ -227,7 +229,7 @@ int main(int argc,char *argv[])
                                    mu_k, radius, nv_py, S, (char*)NULL);
         if (server_result < 0) {
             cout << "Failed to initialize python server." << endl;
-            kill_server(pid);
+            exit(1);
         }
     }
     // If ctrl+C or segfault, kill python server.
@@ -264,7 +266,7 @@ int main(int argc,char *argv[])
 
     // Close (if necessary) the data file
     myWorld.CloseFile(pull_data);
-
-    return 0;
+    kill(pid, SIGTERM); // kill child before exiting
+    exit(0);
 }
 

@@ -469,7 +469,7 @@ class IMC:
         closest_distance = 0
         last_cd = 0
 
-        while 1:
+        while not socket.closed:
             # block until DER gives msg
             socket.recv()
 

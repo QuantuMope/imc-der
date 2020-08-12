@@ -422,8 +422,8 @@ void world::newtonMethod(bool &solved)
         // Exit if unable to converge
         if (iter > maxIter)
         {
-            kill(pid, SIGINT); // kill server before exiting
             cout << "No convergence after " << maxIter << " iterations" << endl;
+            kill(pid, SIGTERM); // kill child before exiting
             exit(1);
         }
     }
@@ -436,7 +436,6 @@ int world::simulationRunning()
     else
     {
         cout << "Completed simulation." << endl;
-        kill(pid, SIGINT); // kill server before exiting
         return -1;
     }
 }
