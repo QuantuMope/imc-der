@@ -1,5 +1,5 @@
 ## Implicit Contact Method
-Contact method for Discrete Elastic Rod simulations. Formulates "contact energy" as a twice differentiable analytical expression 
+Contact method for 3D elastic rod simulations. Uses Discrete Elastic Rod (DER) framework and incorporates contact forces. Formulates "contact energy" as a twice differentiable analytical expression 
 and uses the gradient (Forces) and Hessian (Jacobian) to simulate contact.
 
 ![](images/knot_tying.png)
