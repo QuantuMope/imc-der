@@ -1,6 +1,6 @@
 .SILENT:
 
-LIBRARIES = -lGL -lglut -lGLU -L /usr/lib/ -lpardiso600-GNU720-X86-64 -llapack -lgfortran -fopenmp -lpthread -lzmq -lm -Ofast -lrt
+LIBRARIES = -lGL -lglut -lGLU -L /usr/lib/ -lpardiso600-GNU800-X86-64 -llapack -lgfortran -fopenmp -lpthread -lzmq -lm -Ofast -lrt
 LIB_PATH = /usr/local/include/eigen3/
 STD = -std=c++11
 

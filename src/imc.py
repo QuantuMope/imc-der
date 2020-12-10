@@ -20,6 +20,8 @@ class IMC:
         self.contact_stiffness = params['contact_stiffness']
         ce_k, mu_k = params['ce_k'], params['mu_k']
         self.mu_k = mu_k
+        self.dt = None  # the time step is computed once time stamps are received from C++
+        self.second_time_step = False  # used to determine dt only once
 
         self.contact_len = self.radius * 2
         cekr = '_cek_' + str(ce_k) + '_h2_' + str(self.contact_len)
@@ -96,6 +98,11 @@ class IMC:
         assert self.forces.flags['C_CONTIGUOUS'] is True
         assert self.hessian.flags['C_CONTIGUOUS'] is True
         assert self.meta_data.flags['C_CONTIGUOUS'] is True
+
+    def _get_dvdx(self, velocity_pre):
+        # Compute dv/dx = acceleration / velocity
+        a = self.velocities - velocity_pre
+
 
     @staticmethod
     @njit
@@ -457,6 +464,11 @@ class IMC:
             elif curr_cd < self.contact_len:
                 self.contact_stiffness *= 1.001
 
+    def compute_dt(self):
+        # Figures out what dt is based off the first update
+        self.dt = self.meta_data[2]
+        self.second_time_step = False  # disable this function
+
     def start_server(self):
         # Initialize ZMQ socket.
         context = zmq.Context()
@@ -466,6 +478,7 @@ class IMC:
 
         edge_ids = None
         velocities = None
+        velocities_pre = np.zeros_like(self.velocities)  # velocities from the previous time step
         closest_distance = 0
         last_cd = 0
 
@@ -484,6 +497,10 @@ class IMC:
             if first_iter:
                 self.velocities *= self.scale
                 edge_ids, closest_distance = self._detect_collisions()
+
+                # Derive the time step from time stamps at the beginning of the program
+                if self.second_time_step: self.compute_dt()
+                if self.meta_data[2] == 0: self.second_time_step = True
 
             # Reset all gradient and hessian values to 0
             self.forces[:] = 0.

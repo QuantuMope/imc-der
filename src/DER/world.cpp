@@ -40,7 +40,7 @@ world::world(setInput &m_inputData)
 
     shearM = youngM/(2.0*(1.0+Poisson));					     // shear modulus
 
-    alpha = 1.0;
+    alpha = 1.0;                                                 // newton damper
     total_iters = 0;
 
     totalTime = wait_time + pull_time + release_time;
