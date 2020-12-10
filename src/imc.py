@@ -18,12 +18,12 @@ class IMC:
         self.num_edges = num_nodes - 1
         self.collision_limit = params['collision_limit']
         self.contact_stiffness = params['contact_stiffness']
-        ce_k, mu_k = params['ce_k'], params['mu_k']
-        self.mu_k = mu_k
+        self.mu_k = params['mu_k']
         self.dt = None  # the time step is computed once time stamps are received from C++
         self.second_time_step = False  # used to determine dt only once
 
         self.contact_len = self.radius * 2
+        ce_k = params['ce_k']
         cekr = '_cek_' + str(ce_k) + '_h2_' + str(self.contact_len)
         func_names = ['dd', 'first_grad', 'constant_hess', 'first_hess', 'second_grad' + cekr,
                       'second_hess' + cekr, 'friction_jacobian']
@@ -170,7 +170,7 @@ class IMC:
     def _jit_prepare_velocities(edge_ids, velocities_pre, hessian, velocity_data, dt):
         num_edges = edge_ids.shape[0]
         velocities = np.zeros((num_edges, 12), dtype=np.float64)
-        dvdx = np.zeros((num_edges, 12), dtype=np.float64) if hessian else None
+        dvdx = np.zeros((num_edges, 12, 12), dtype=np.float64) if hessian else None
 
         for i, ids in enumerate(edge_ids):
             x, y = ids
@@ -183,8 +183,8 @@ class IMC:
             if hessian:
                 a_x = (vel_x - velocities_pre[3*x:(3*x)+6]) / dt
                 a_y = (vel_y - velocities_pre[3*y:(3*y)+6]) / dt
-                dvdx[i, :6] = a_x / vel_x
-                dvdx[i, 6:] = a_y / vel_y
+                dvdx[i, :6, :6] = np.diag(a_x / vel_x)
+                dvdx[i, 6:, 6:] = np.diag(a_y / vel_y)
 
         return velocities, dvdx
 
@@ -212,14 +212,14 @@ class IMC:
 
     @staticmethod
     @njit
-    def _optimize_chain_rule(dd_grads, f_grad_vals, s_grad_vals, s_hess_vals_pre, s_hess_vals, dE_dx):
+    def _optimize_chain_rule(dd_grads, f_grad_vals, s_grad_vals, s_hess_vals_pre, s_hess_vals, dedx):
         num_inputs = s_grad_vals.shape[0]
         # Perform chain rule for contact gradient (forces)
         # dE/dx = dE/dd1 * dd1/dx + dE/dd2 * dd2/dx + and so on
-        dE_dx[:] += s_grad_vals[:, :9] @ dd_grads
+        dedx[:] += s_grad_vals[:, :9] @ dd_grads
         s_grad_vals = s_grad_vals.reshape((num_inputs, 15, 1))
         for i in range(6):
-            dE_dx[:] += s_grad_vals[:, i+9] * f_grad_vals[i]
+            dedx[:] += s_grad_vals[:, i+9] * f_grad_vals[i]
 
         # Perform chain rule to obtain d^2E/dd1x, d^2E/dd2x, and so on
         # These are necessary to compute the chain rule for hessian.
@@ -233,69 +233,65 @@ class IMC:
 
     def _chain_rule_contact_hess(self, f_grad_vals, s_grad_vals, f_hess_vals, s_hess_vals_pre):
         num_inputs = s_grad_vals.shape[0]
-        dE_dx = np.zeros((num_inputs, 12), dtype=np.float64)
-        d2E_dx2 = np.zeros((num_inputs, 12, 12), dtype=np.float64)
+        dedx = np.zeros((num_inputs, 12), dtype=np.float64)
+        d2edx2 = np.zeros((num_inputs, 12, 12), dtype=np.float64)
 
         # Optimize chain rule for code that involves only 2D arrays using numba jit
         s_hess_vals = np.zeros((15, num_inputs, 12), dtype=np.float64)
 
-        self._optimize_chain_rule(self.dd_grads, f_grad_vals, s_grad_vals, s_hess_vals_pre, s_hess_vals, dE_dx)
+        self._optimize_chain_rule(self.dd_grads, f_grad_vals, s_grad_vals, s_hess_vals_pre, s_hess_vals, dedx)
 
-        # Perform chain rule for contact hessian
+        # Perform product rule and chain rule for contact hessian
         # d^2E/dx = d^2E/dd1x * dd1/dx + dE/dd1 * d^2d1/dx^2 + and so on
         s_grad_vals = s_grad_vals.reshape((num_inputs, 15, 1, 1))
         s_hess_vals = s_hess_vals.reshape((15, num_inputs, 12, 1))
         f_grad_vals = f_grad_vals.reshape((6, num_inputs, 1, 12))
         dd = self.dd_grads.reshape((9, 1, 12))
         for i in range(9):
-            d2E_dx2[:] += s_hess_vals[i] @ dd[i]
+            d2edx2[:] += s_hess_vals[i] @ dd[i]
         for i in range(5):
-            d2E_dx2[:] += s_grad_vals[:, i+9] * self.f_hess_const[i]
-            d2E_dx2[:] += s_hess_vals[i + 9] @ f_grad_vals[i]
-        d2E_dx2[:] += s_grad_vals[:, -1] * f_hess_vals
-        d2E_dx2[:] += s_hess_vals[-1] @ f_grad_vals[-1]
+            d2edx2[:] += s_grad_vals[:, i+9] * self.f_hess_const[i]
+            d2edx2[:] += s_hess_vals[i + 9] @ f_grad_vals[i]
+        d2edx2[:] += s_grad_vals[:, -1] * f_hess_vals
+        d2edx2[:] += s_hess_vals[-1] @ f_grad_vals[-1]
 
-        return dE_dx, d2E_dx2
+        return dedx, d2edx2
 
     @staticmethod
     @njit
     def _chain_rule_contact_nohess(dd_grads, f_grad_vals, s_grad_vals):
         num_inputs = s_grad_vals.shape[0]
-        dE_dx = np.zeros((num_inputs, 12), dtype=np.float64)
-        dE_dx[:] += s_grad_vals[:, :9] @ dd_grads
+        dedx = np.zeros((num_inputs, 12), dtype=np.float64)
+        dedx[:] += s_grad_vals[:, :9] @ dd_grads
         s_grad_vals = s_grad_vals.reshape((num_inputs, 15, 1))
         for i in range(6):
-            dE_dx[:] += s_grad_vals[:, i+9] * f_grad_vals[i]
+            dedx[:] += s_grad_vals[:, i+9] * f_grad_vals[i]
 
-        return dE_dx
+        return dedx
 
     @staticmethod
     @njit
-    def _get_ffr_jacobian_inputs(edges, velocities, dE_dx, mu_k):
-        num_inputs = edges.shape[0]
-        ffr_jac_input = np.zeros((num_inputs, 37), dtype=np.float64)
+    def _get_ffr_jacobian_inputs(velocities, dedx, mu_k):
+        ffr_jac_input = np.zeros((velocities.shape[0], 25), dtype=np.float64)
 
-        ffr_jac_input[:, :12] += edges
-        ffr_jac_input[:, 12:24] += velocities
-        ffr_jac_input[:, 24:36] += dE_dx
-        ffr_jac_input[:, 36] += mu_k
+        ffr_jac_input[:, :12] = velocities
+        ffr_jac_input[:, 12:24] = dedx
+        ffr_jac_input[:, 24] = mu_k
 
         return ffr_jac_input
 
     @staticmethod
-    def _chain_rule_friction_jacobian(ffr_grad_s, d2E_dx2):
+    def _chain_rule_friction_jacobian(ffr_grad_s, d2edx2, dvdx):
         """  This function is more efficient without numba njit
              since we can do 3D matrix operation without for loop. """
 
-        num_inputs = ffr_grad_s.shape[0]
-        ffr_jacobian = np.zeros((num_inputs, 12, 12), dtype=np.float64)
+        ffr_jacobian = np.zeros((ffr_grad_s.shape[0], 12, 12), dtype=np.float64)
 
-        ffr1_grad = ffr_grad_s[:, :3, :12] + ffr_grad_s[:, :3, 12:] @ d2E_dx2
-        ffr2_grad = ffr_grad_s[:, 3:, :12] + ffr_grad_s[:, 3:, 12:] @ d2E_dx2
-        ffr_jacobian[:, :3]  += ffr1_grad
-        ffr_jacobian[:, 3:6] += ffr1_grad
-        ffr_jacobian[:, 6:9] += ffr2_grad
-        ffr_jacobian[:, 9:]  += ffr2_grad
+        ffr_j = ffr_grad_s[:, :, :12] @ dvdx + ffr_grad_s[:, :, 12:] @ d2edx2
+        ffr_jacobian[:, :3]  = ffr_j
+        ffr_jacobian[:, 3:6] = ffr_j
+        ffr_jacobian[:, 6:9] = -ffr_j
+        ffr_jacobian[:, 9:]  = -ffr_j
 
         return ffr_jacobian
 
@@ -349,20 +345,15 @@ class IMC:
             f_grad_vals = f_grad_vals.reshape((6, 1, 12))
 
         # Perform chain ruling to get contact gradient and hessian
-        dE_dx = self._chain_rule_contact_nohess(self.dd_grads, f_grad_vals, s_grad_vals)
+        dedx = self._chain_rule_contact_nohess(self.dd_grads, f_grad_vals, s_grad_vals)
 
         # Calculate friction forces on all four nodes
-        ffr = self._get_ffr(velocities, dE_dx, self.mu_k)
+        ffr = self._get_ffr(velocities, dedx, self.mu_k)
 
         if self.friction:
-            total_forces = dE_dx + ffr
+            total_forces = dedx + ffr
         else:
-            total_forces = dE_dx
-
-        # Check to make sure no nan or infs are added to simulator
-        f_test = np.sum(total_forces)
-        assert not np.isnan(f_test), 'Force had a nan'
-        assert not np.isinf(f_test), 'Force had an inf'
+            total_forces = dedx
 
         # Write gradient and hessian to shared memory location for DER
         self._py_to_cpp_nohess(total_forces, self.forces, edge_ids)
@@ -394,36 +385,25 @@ class IMC:
             f_grad_vals = f_grad_vals.reshape((6, 1, 12))
 
         # Perform chain ruling to get contact gradient and hessian
-        dE_dx, d2E_dx2 = self._chain_rule_contact_hess(f_grad_vals, s_grad_vals, f_hess_vals, s_hess_vals_pre)
+        dedx, d2edx2 = self._chain_rule_contact_hess(f_grad_vals, s_grad_vals, f_hess_vals, s_hess_vals_pre)
 
         # Prepare inputs for friction force functions
-        ffr_jacobian_input = self._get_ffr_jacobian_inputs(edges, velocities, dE_dx, self.mu_k)
+        ffr_jacobian_input = self._get_ffr_jacobian_inputs(velocities, dedx, self.mu_k)
 
         # Calculate friction forces on all four nodes
-        ffr = self._get_ffr(velocities, dE_dx, self.mu_k)
+        ffr = self._get_ffr(velocities, dedx, self.mu_k)
 
         # Calculate the incomplete friction force gradients
-        ffr_grad_s = self.ffr_jacobian_func(*ffr_jacobian_input).reshape((num_inputs, 6, 24))
+        ffr_grad_s = self.ffr_jacobian_func(*ffr_jacobian_input).reshape((num_inputs, 3, 24))
 
-        ffr_jacobian = self._chain_rule_friction_jacobian(ffr_grad_s, d2E_dx2)
+        ffr_jacobian = self._chain_rule_friction_jacobian(ffr_grad_s, d2edx2, dvdx)
 
         if self.friction:
-            total_forces = dE_dx + ffr
-            total_jacobian = d2E_dx2 + ffr_jacobian
+            total_forces = dedx + ffr
+            total_jacobian = d2edx2 + ffr_jacobian
         else:
-            total_forces = dE_dx
-            total_jacobian = d2E_dx2
-
-        # Check to make sure no nan or infs are added to simulator
-        try:
-            f_test = np.sum(total_forces)
-            h_test = np.sum(total_jacobian)
-            assert not np.isnan(f_test), 'Force had a nan'
-            assert not np.isinf(f_test), 'Force had an inf'
-            assert not np.isnan(h_test), 'Jacobian had a nan'
-            assert not np.isinf(h_test), 'Jacobian had an inf'
-        except AssertionError:
-            total_jacobian = d2E_dx2  # remove ffr jacobian
+            total_forces = dedx
+            total_jacobian = d2edx2
 
         # Write gradient and hessian to shared memory location for DER
         self._py_to_cpp_hess(total_forces, total_jacobian, edge_ids)

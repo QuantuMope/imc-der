@@ -12,10 +12,9 @@ def initialize_functions(ce_k, h2):
         Must be run for first time ce_k and h2 values.
         After ran once, created functions are serialized.
     """
-    dir = 'DER/grads_hessian_functions/'
+    dir = './DER/grads_hessian_functions/'
 
-    if not os.path.exists(dir):
-        os.makedirs(dir)
+    if not os.path.exists(dir): os.makedirs(dir)
 
     if os.path.isfile(dir + 'first_grad'):
         print('Functions have already been generated previously for a different ce_k, h2 pair. '
@@ -148,12 +147,9 @@ def second_grads_and_hessian(ce_k, h2, k1=50.0, k2=50.0):
 
 def ffr_jacobian():
     """
-        Obtain jacobian of F_fr
+        Obtain Jacobian of friction force.
+        Returns 3x24 Jacobian. dFfr/dy where y = [velocity; Fn]
     """
-    x1s = sy.symarray('x1s', 3)
-    x1e = sy.symarray('x1e', 3)
-    x2s = sy.symarray('x2s', 3)
-    x2e = sy.symarray('x2e', 3)
     v1s = sy.symarray('v1s', 3)
     v1e = sy.symarray('v1e', 3)
     v2s = sy.symarray('v2s', 3)
@@ -164,38 +160,25 @@ def ffr_jacobian():
     f2e = sy.symarray('f2e', 3)
     mu_k = sy.symbols('mu_k')
 
-    T1 = (x2e - x2s) / sy.sqrt(((x2e - x2s)**2).sum())
-    T2 = (x1e - x1s) / sy.sqrt(((x1e - x1s)**2).sum())
-
     fn1 = sy.sqrt(((f1s + f1e)**2).sum())
     fn2 = sy.sqrt(((f2s + f2e)**2).sum())
     fn  = 0.5 * (fn1 + fn2)
 
     v1 = 0.5 * (v1s + v1e)
     v2 = 0.5 * (v2s + v2e)
-    vr1 = v1 - v2
-    vr2 = -vr1
-
-    dir1 = vr1.dot(T1)
-    dir2 = vr2.dot(T2)
-    g1 = sy.Piecewise((1.0, dir1 > 0.0), (-1.0, dir1 < 0.0), (0.0, True))  # the sign function
-    g2 = sy.Piecewise((1.0, dir2 > 0.0), (-1.0, dir2 < 0.0), (0.0, True))  # the sign function
+    v_rel = v1 - v2
+    v_rel_u = v_rel / sy.sqrt((v_rel**2).sum())
 
     ffr_val = mu_k * fn
 
-    ffr1 = g1 * T1 * ffr_val
-    ffr2 = g2 * T2 * ffr_val
+    ffr_e = 0.5 * v_rel_u * ffr_val
 
-    ffr1 = 0.5 * (ffr1 - ffr2)
-    ffr2 = -ffr1
+    inputs = [*v1s, *v1e, *v2s, *v2e, *f1s, *f1e, *f2s, *f2e, mu_k]
 
-    ffr1a = 0.5 * ffr1
-    ffr2a = 0.5 * ffr2
+    # Friction Jacobian is only calculated for node i since ffr_i = ffr_i+1 and ffr_j = ffr_j+1 = -ffr_i
+    ffr = sy.Matrix([*ffr_e])
 
-    inputs = [*x1s, *x1e, *x2s, *x2e, *v1s, *v1e, *v2s, *v2e, *f1s, *f1e, *f2s, *f2e, mu_k]
-    ffr = sy.Matrix([*ffr1a, *ffr2a])
-
-    wrt = [*x1s, *x1e, *x2s, *x2e, *f1s, *f1e, *f2s, *f2e]
+    wrt = [*v1s, *v1e, *v2s, *v2e, *f1s, *f1e, *f2s, *f2e]
     ffr_grad = create_function(sy.Matrix(ffr).jacobian(wrt), inputs)
 
     return ffr_grad
