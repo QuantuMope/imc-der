@@ -99,11 +99,6 @@ class IMC:
         assert self.hessian.flags['C_CONTIGUOUS'] is True
         assert self.meta_data.flags['C_CONTIGUOUS'] is True
 
-    def _get_dvdx(self, velocity_pre):
-        # Compute dv/dx = acceleration / velocity
-        a = self.velocities - velocity_pre
-
-
     @staticmethod
     @njit
     def _get_ffr(edges, velocities, forces, mu_k):
@@ -192,22 +187,37 @@ class IMC:
         """ Wrapper function. Numba jit does not work on class methods. """
         return self._jit_detect_collisions(self.edges, self.edge_combos, self.edge_ids, self.collision_limit,
                                            self.node_coordinates, self.contact_len, self.ia)
+    def _compute_dvdx(self, velocities_pre):
+        # Compute dv/dx for friction Jacobian. Using chain rule, dv/dx = a / v
+        a = (self.velocities - velocities_pre) / self.dt
+        return a / self.velocities
+
 
     @staticmethod
     @njit
-    def _jit_prepare_velocities(edge_ids, velocity_data):
+    def _jit_prepare_velocities(edge_ids, velocities_pre, hessian, velocity_data, dt):
         num_edges = edge_ids.shape[0]
         velocities = np.zeros((num_edges, 12), dtype=np.float64)
+        dvdx = np.zeros((num_edges, 12), dtype=np.float64) if hessian else None
 
         for i, ids in enumerate(edge_ids):
             x, y = ids
-            velocities[i, :6] = velocity_data[3*x:(3*x)+6]
-            velocities[i, 6:] = velocity_data[3*y:(3*y)+6]
+            vel_x = velocity_data[3*x:(3*x)+6]
+            vel_y = velocity_data[3*y:(3*y)+6]
+            velocities[i, :6] = vel_x
+            velocities[i, 6:] = vel_y
 
-        return velocities
+            # Compute dv/dx for friction Jacobian. Using chain rule, dv/dx = a/v
+            if hessian:
+                a_x = (vel_x - velocities_pre[3*x:(3*x)+6]) / dt
+                a_y = (vel_y - velocities_pre[3*y:(3*y)+6]) / dt
+                dvdx[i, :6] = a_x / vel_x
+                dvdx[i, 6:] = a_y / vel_y
 
-    def _prepare_velocities(self, edge_ids):
-        return self._jit_prepare_velocities(edge_ids, self.velocities)
+        return velocities, dvdx
+
+    def _prepare_velocities(self, edge_ids, velocities_pre, hessian):
+        return self._jit_prepare_velocities(edge_ids, velocities_pre, hessian, self.velocities, self.dt)
 
     @staticmethod
     @njit
@@ -351,7 +361,7 @@ class IMC:
             cpp_forces[(3 * e2):(3 * e2) + 6] += forces[6:]
 
     def _get_forces(self, contact_points):
-        edges, edge_ids, velocities, s_input_vals = contact_points
+        edges, edge_ids, velocities, s_input_vals, _ = contact_points
 
         num_inputs = edges.shape[0]
 
@@ -389,7 +399,7 @@ class IMC:
         self.forces[:] *= self.contact_stiffness
 
     def _get_forces_and_hessian(self, contact_points):
-        edges, edge_ids, velocities, s_input_vals = contact_points
+        edges, edge_ids, velocities, s_input_vals, dvdx = contact_points
 
         num_inputs = edges.shape[0]
 
@@ -464,7 +474,7 @@ class IMC:
             elif curr_cd < self.contact_len:
                 self.contact_stiffness *= 1.001
 
-    def compute_dt(self):
+    def _compute_dt(self):
         # Figures out what dt is based off the first update
         self.dt = self.meta_data[2]
         self.second_time_step = False  # disable this function
@@ -479,6 +489,7 @@ class IMC:
         edge_ids = None
         velocities = None
         velocities_pre = np.zeros_like(self.velocities)  # velocities from the previous time step
+        dvdx = None
         closest_distance = 0
         last_cd = 0
 
@@ -499,7 +510,7 @@ class IMC:
                 edge_ids, closest_distance = self._detect_collisions()
 
                 # Derive the time step from time stamps at the beginning of the program
-                if self.second_time_step: self.compute_dt()
+                if self.second_time_step: self._compute_dt()
                 if self.meta_data[2] == 0: self.second_time_step = True
 
             # Reset all gradient and hessian values to 0
@@ -509,16 +520,16 @@ class IMC:
             # Generate forces is contact is detected
             num_con = edge_ids.shape[0]
             if num_con != 0:
-
                 # Obtain edge combinations and velocities
-                if first_iter: velocities = self._prepare_velocities(edge_ids)
+                # dv/dx is None if Hessian is not being computed
+                if first_iter: velocities, dvdx = self._prepare_velocities(edge_ids, velocities_pre, hessian)
                 edge_combos, closest_distance, f_out_vals = self._prepare_edges(edge_ids)
 
                 # Increase/decrease contact stiffness depending on penetration severity
                 if first_iter: self._update_contact_stiffness(closest_distance, last_cd)
 
                 # If contact exists, compute contact gradient and hessian
-                contact_data = (edge_combos, edge_ids, velocities, f_out_vals)
+                contact_data = (edge_combos, edge_ids, velocities, f_out_vals, dvdx)
 
                 if not hessian:
                     self._get_forces(contact_data)
@@ -530,7 +541,7 @@ class IMC:
             # Unblock DER
             socket.send(b'')
 
-            # After each time step, print out summary information
+            # After each time step, print out summary information and update previous velocities
             if first_iter:
                 last_cd = closest_distance
                 print("time: {:.4f} | iters: {} | con: {:03d} | min_dist: {:.6f} | "
@@ -540,6 +551,7 @@ class IMC:
                                                     self.meta_data[4],
                                                     self.contact_stiffness,
                                                     self.friction))
+                velocities_pre = self.velocities.copy()
 
 
 def main():
