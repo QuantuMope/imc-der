@@ -187,11 +187,6 @@ class IMC:
         """ Wrapper function. Numba jit does not work on class methods. """
         return self._jit_detect_collisions(self.edges, self.edge_combos, self.edge_ids, self.collision_limit,
                                            self.node_coordinates, self.contact_len, self.ia)
-    def _compute_dvdx(self, velocities_pre):
-        # Compute dv/dx for friction Jacobian. Using chain rule, dv/dx = a / v
-        a = (self.velocities - velocities_pre) / self.dt
-        return a / self.velocities
-
 
     @staticmethod
     @njit
