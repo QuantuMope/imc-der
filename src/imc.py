@@ -101,51 +101,28 @@ class IMC:
 
     @staticmethod
     @njit
-    def _get_ffr(edges, velocities, forces, mu_k):
-        x1s, x1e, x2s, x2e = edges[:, :3], edges[:, 3:6], edges[:, 6:9], edges[:, 9:]
+    def _get_ffr(velocities, forces, mu_k):
         v1s, v1e, v2s, v2e = velocities[:, :3], velocities[:, 3:6], velocities[:, 6:9], velocities[:, 9:]
         f1s, f1e  = forces[:, :3], forces[:, 3:6]
 
-        num_inputs = edges.shape[0]
-
-        T1 = (x2e - x2s) / np.sqrt(((x2e - x2s)**2).sum(axis=1)).reshape((num_inputs, 1))
-        T2 = (x1e - x1s) / np.sqrt(((x1e - x1s)**2).sum(axis=1)).reshape((num_inputs, 1))
+        num_inputs = velocities.shape[0]
 
         fn = np.sqrt(((f1s + f1e)**2).sum(axis=1))
         ffr_val = mu_k * fn
 
         v1 = 0.5 * (v1s + v1e)
         v2 = 0.5 * (v2s + v2e)
-        vr1 = v1 - v2
+        v_rel = v1 - v2
+        v_rel = v_rel / (np.sqrt((v_rel**2).sum(axis=1))).reshape(num_inputs, 1)
 
-        dir1 = np.zeros(num_inputs, dtype=np.float64)
-        dir2 = np.zeros(num_inputs, dtype=np.float64)
-
-        # Use for loop here for numba jit compiler. 3D matrix operations unallowed
-        for i in range(num_inputs):
-            vrx = vr1[i]
-            vry, Tx, Ty = -vrx, T1[i], T2[i]
-            dir1[i] = vrx.dot(Tx)
-            dir2[i] = vry.dot(Ty)
-
-        dir1[dir1 >  0.0] =  1.0
-        dir1[dir1 <  0.0] = -1.0
-        dir1[dir1 == 0.0] =  0.0
-        dir2[dir2 >  0.0] =  1.0
-        dir2[dir2 <  0.0] = -1.0
-        dir2[dir2 == 0.0] =  0.0
-
-        ffr1 = dir1.reshape((num_inputs, 1)) * T1 * ffr_val.reshape((num_inputs, 1))
-        ffr2 = dir2.reshape((num_inputs, 1)) * T2 * ffr_val.reshape((num_inputs, 1))
+        ffr_e = 0.5 * v_rel * ffr_val.reshape((num_inputs, 1))
 
         ffr = np.zeros((num_inputs, 12), dtype=np.float64)
-        ffr1x = 0.50 * (ffr1 - ffr2)
-        ffr2x = -ffr1x
 
-        ffr[:, :3]  = 0.50 * ffr1x
-        ffr[:, 3:6] = 0.50 * ffr1x
-        ffr[:, 6:9] = 0.50 * ffr2x
-        ffr[:, 9:]  = 0.50 * ffr2x
+        ffr[:, :3]  = ffr_e
+        ffr[:, 3:6] = ffr_e
+        ffr[:, 6:9] = -ffr_e
+        ffr[:, 9:]  = -ffr_e
 
         return ffr
 
@@ -375,7 +352,7 @@ class IMC:
         dE_dx = self._chain_rule_contact_nohess(self.dd_grads, f_grad_vals, s_grad_vals)
 
         # Calculate friction forces on all four nodes
-        ffr = self._get_ffr(edges, velocities, dE_dx, self.mu_k)
+        ffr = self._get_ffr(velocities, dE_dx, self.mu_k)
 
         if self.friction:
             total_forces = dE_dx + ffr
@@ -423,7 +400,7 @@ class IMC:
         ffr_jacobian_input = self._get_ffr_jacobian_inputs(edges, velocities, dE_dx, self.mu_k)
 
         # Calculate friction forces on all four nodes
-        ffr = self._get_ffr(edges, velocities, dE_dx, self.mu_k)
+        ffr = self._get_ffr(velocities, dE_dx, self.mu_k)
 
         # Calculate the incomplete friction force gradients
         ffr_grad_s = self.ffr_jacobian_func(*ffr_jacobian_input).reshape((num_inputs, 6, 24))
