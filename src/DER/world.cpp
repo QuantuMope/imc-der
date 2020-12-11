@@ -41,9 +41,11 @@ world::world(setInput &m_inputData)
     shearM = youngM/(2.0*(1.0+Poisson));					     // shear modulus
 
     alpha = 1.0;                                                 // newton damper
-    total_iters = 0;
+    total_iters = 0;                                             // total number of newton iterations
 
-    totalTime = wait_time + pull_time + release_time;
+    totalTime = wait_time + pull_time + release_time;            // total sim time
+
+    meta_data[6] = deltaTime;                                    // set dt for python to see
 }
 
 world::~world()

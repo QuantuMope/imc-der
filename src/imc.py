@@ -19,8 +19,6 @@ class IMC:
         self.collision_limit = params['collision_limit']
         self.contact_stiffness = params['contact_stiffness']
         self.mu_k = params['mu_k']
-        self.dt = None  # the time step is computed once time stamps are received from C++
-        self.second_time_step = False  # used to determine dt only once
 
         self.contact_len = self.radius * 2
         ce_k = params['ce_k']
@@ -70,7 +68,7 @@ class IMC:
         # Sizes for data structures
         nv = num_nodes * 3
         h_size = (nv, nv)
-        meta_data_size = 6
+        meta_data_size = 7
 
         # Initialize shared memory
         self.port_no = sys.argv[1]
@@ -167,10 +165,27 @@ class IMC:
 
     @staticmethod
     @njit
-    def _jit_prepare_velocities(edge_ids, velocities_pre, hessian, velocity_data, dt):
-        num_edges = edge_ids.shape[0]
-        velocities = np.zeros((num_edges, 12), dtype=np.float64)
-        dvdx = np.zeros((num_edges, 12, 12), dtype=np.float64) if hessian else None
+    def _jit_prepare_dvdx(edge_ids, velocities_pre, dt, velocities_curr):
+        # Compute dv/dx for friction Jacobian. Using chain rule, dv/dx = a/v
+        dvdx = np.zeros((edge_ids.shape[0], 12, 12), dtype=np.float64)
+        for i, ids in enumerate(edge_ids):
+            x, y = ids
+            vel_x = velocities_curr[3*x:(3*x)+6]
+            vel_y = velocities_curr[3*y:(3*y)+6]
+            a_x = (vel_x - velocities_pre[3*x:(3*x)+6]) / dt
+            a_y = (vel_y - velocities_pre[3*y:(3*y)+6]) / dt
+            dvdx[i, :6, :6] = np.diag(a_x / vel_x)
+            dvdx[i, 6:, 6:] = np.diag(a_y / vel_y)
+
+        return dvdx
+
+    def _prepare_dvdx(self, edge_ids, velocities_pre, dt):
+        return self._jit_prepare_dvdx(edge_ids, velocities_pre, dt, self.velocities)
+
+    @staticmethod
+    @njit
+    def _jit_prepare_velocities(edge_ids, velocity_data):
+        velocities = np.zeros((edge_ids.shape[0], 12), dtype=np.float64)
 
         for i, ids in enumerate(edge_ids):
             x, y = ids
@@ -179,17 +194,10 @@ class IMC:
             velocities[i, :6] = vel_x
             velocities[i, 6:] = vel_y
 
-            # Compute dv/dx for friction Jacobian. Using chain rule, dv/dx = a/v
-            if hessian:
-                a_x = (vel_x - velocities_pre[3*x:(3*x)+6]) / dt
-                a_y = (vel_y - velocities_pre[3*y:(3*y)+6]) / dt
-                dvdx[i, :6, :6] = np.diag(a_x / vel_x)
-                dvdx[i, 6:, 6:] = np.diag(a_y / vel_y)
+        return velocities
 
-        return velocities, dvdx
-
-    def _prepare_velocities(self, edge_ids, velocities_pre, hessian):
-        return self._jit_prepare_velocities(edge_ids, velocities_pre, hessian, self.velocities, self.dt)
+    def _prepare_velocities(self, edge_ids):
+        return self._jit_prepare_velocities(edge_ids, self.velocities)
 
     @staticmethod
     @njit
@@ -281,7 +289,7 @@ class IMC:
         return ffr_jac_input
 
     @staticmethod
-    def _chain_rule_friction_jacobian(ffr_grad_s, d2edx2, dvdx):
+    def _chain_rule_friction_jacobian(ffr_grad_s, dvdx, d2edx2):
         """  This function is more efficient without numba njit
              since we can do 3D matrix operation without for loop. """
 
@@ -328,8 +336,7 @@ class IMC:
             cpp_forces[(3 * e1):(3 * e1) + 6] += forces[:6]
             cpp_forces[(3 * e2):(3 * e2) + 6] += forces[6:]
 
-    def _get_forces(self, contact_points):
-        edges, edge_ids, velocities, s_input_vals, _ = contact_points
+    def _get_forces(self, edges, edge_ids, velocities, s_input_vals):
 
         num_inputs = edges.shape[0]
 
@@ -361,9 +368,7 @@ class IMC:
         # Apply contact stiffness to gradient and hessian
         self.forces[:] *= self.contact_stiffness
 
-    def _get_forces_and_hessian(self, contact_points):
-        edges, edge_ids, velocities, s_input_vals, dvdx = contact_points
-
+    def _get_forces_and_hessian(self, edges, edge_ids, velocities, s_input_vals, dvdx):
         num_inputs = edges.shape[0]
 
         # Obtain first contact energy gradients
@@ -396,7 +401,7 @@ class IMC:
         # Calculate the incomplete friction force gradients
         ffr_grad_s = self.ffr_jacobian_func(*ffr_jacobian_input).reshape((num_inputs, 3, 24))
 
-        ffr_jacobian = self._chain_rule_friction_jacobian(ffr_grad_s, d2edx2, dvdx)
+        ffr_jacobian = self._chain_rule_friction_jacobian(ffr_grad_s, dvdx, d2edx2)
 
         if self.friction:
             total_forces = dedx + ffr
@@ -426,11 +431,6 @@ class IMC:
             elif curr_cd < self.contact_len:
                 self.contact_stiffness *= 1.001
 
-    def _compute_dt(self):
-        # Figures out what dt is based off the first update
-        self.dt = self.meta_data[2]
-        self.second_time_step = False  # disable this function
-
     def start_server(self):
         # Initialize ZMQ socket.
         context = zmq.Context()
@@ -444,6 +444,7 @@ class IMC:
         dvdx = None
         closest_distance = 0
         last_cd = 0
+        computed_dvdx = False  # flag used to make sure dvdx is only computed once every time step
 
         while not socket.closed:
             # block until DER gives msg
@@ -452,6 +453,7 @@ class IMC:
             hessian = int(self.meta_data[5])
             first_iter = int(self.meta_data[0])
             self.friction = int(self.meta_data[1])
+            dt = self.meta_data[6]
 
             # Scale the nodal coordinates by scaling factor
             self.node_coordinates *= self.scale
@@ -460,10 +462,7 @@ class IMC:
             if first_iter:
                 self.velocities *= self.scale
                 edge_ids, closest_distance = self._detect_collisions()
-
-                # Derive the time step from time stamps at the beginning of the program
-                if self.second_time_step: self._compute_dt()
-                if self.meta_data[2] == 0: self.second_time_step = True
+                computed_dvdx = False  # reset dvdx flag
 
             # Reset all gradient and hessian values to 0
             self.forces[:] = 0.
@@ -473,20 +472,20 @@ class IMC:
             num_con = edge_ids.shape[0]
             if num_con != 0:
                 # Obtain edge combinations and velocities
-                # dv/dx is None if Hessian is not being computed
-                if first_iter: velocities, dvdx = self._prepare_velocities(edge_ids, velocities_pre, hessian)
+                if first_iter: velocities = self._prepare_velocities(edge_ids)
                 edge_combos, closest_distance, f_out_vals = self._prepare_edges(edge_ids)
 
                 # Increase/decrease contact stiffness depending on penetration severity
                 if first_iter: self._update_contact_stiffness(closest_distance, last_cd)
 
-                # If contact exists, compute contact gradient and hessian
-                contact_data = (edge_combos, edge_ids, velocities, f_out_vals, dvdx)
-
+                # Compute forces (and Hessian if condition is met)
                 if not hessian:
-                    self._get_forces(contact_data)
+                    self._get_forces(edge_combos, edge_ids, velocities, f_out_vals)
                 else:
-                    self._get_forces_and_hessian(contact_data)
+                    if not computed_dvdx:
+                        dvdx = self._prepare_dvdx(edge_ids, velocities_pre, dt)
+                        computed_dvdx = True
+                    self._get_forces_and_hessian(edge_combos, edge_ids, velocities, f_out_vals, dvdx)
 
             self.meta_data[4] = closest_distance / self.scale
 

@@ -155,7 +155,7 @@ int main(int argc,char *argv[])
     int num_nodes = inputData.GetIntOpt("numVertices");
     int nv = num_nodes * 3;
     int hess_size = nv * nv;
-    int meta_data_size = 6;
+    int meta_data_size = 7;
     string port_no = to_string(inputData.GetIntOpt("port"));
 
     int nc_fd = shm_open(("node_coordinates" + port_no).c_str(), O_CREAT | O_RDWR, 0666);
