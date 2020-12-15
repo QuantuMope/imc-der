@@ -111,6 +111,13 @@ class IMC:
         v1 = 0.5 * (v1s + v1e)
         v2 = 0.5 * (v2s + v2e)
         v_rel = v1 - v2
+
+        # Only consider tangential relative velocity
+        norm = (f1s + f1e) / fn.reshape((num_inputs, 1))
+        rem = np.zeros_like(v_rel)
+        for i in range(num_inputs):
+            rem[i] = v_rel[i].dot(norm[i]) * norm[i]
+        v_rel = v_rel - rem
         v_rel = v_rel / (np.sqrt((v_rel**2).sum(axis=1))).reshape(num_inputs, 1)
 
         ffr_e = 0.5 * v_rel * ffr_val.reshape((num_inputs, 1))

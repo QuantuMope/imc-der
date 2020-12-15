@@ -4,6 +4,7 @@ import sympy as sy
 import numpy as np
 import dill as pickle
 from time import time
+import imc
 from imc_utils import *
 
 
@@ -125,7 +126,7 @@ def second_grads_and_hessian(ce_k, h2, k1=50.0, k2=50.0):
     t3 = (1 - boxcar_func_sy(u1, k=k2)) * approx_fixbound_sy(((u2 * R + S1) / D1), k=k1) + boxcar_func_sy(u1, k=k2) * t2
     dist1 = (d1 * t3 - d2 * u2 - d12)
     dist = sy.sqrt((dist1 ** 2).sum())
-    E = sy.log(1 + sy.exp(ce_k * (h2 - dist)))
+    E = (1 / ce_k) * sy.log(1 + sy.exp(ce_k * (h2 - dist)))
 
     # Create min-distance function with secondary input vals as input
     inputs = wrt = [*d1, *d2, *d12, D1, D2, R, S1, S2, t2]
