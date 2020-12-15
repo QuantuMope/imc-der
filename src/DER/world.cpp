@@ -144,13 +144,13 @@ void world::setRodStepper()
 
     // Depending on contact hessian inclusion, use different solver in timeStepper.cpp
     if (contact_mode == 0) {
-        meta_data[5] == 0;
+        meta_data[5] = 0;
         hessian = 0;
         dx = stepper->getdx_nohess();
         cout << "============================== IMC NO HESSIAN CONTACT ALGORITHM ============================" << endl;
     }
     else if (contact_mode == 1) {
-        meta_data[5] == 1;
+        meta_data[5] = 1;
         hessian = 1;
         dx = stepper->getdx_hess();
         cout << "============================== IMC HESSIAN CONTACT ALGORITHM ============================" << endl;
