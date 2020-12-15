@@ -203,11 +203,11 @@ def plot_normalized_force(expR, expT, eTe, labels):
     plt.legend(loc='upper left')
 
 
-def plot_iterations(expR, iters, comp_time, labels):
+def plot_iterations(eTe, iters, comp_time, labels):
     fig, ax1 = plt.subplots(figsize=(4, 3), dpi=600)
-    for i in range(len(expR)):
+    for i in range(len(eTe)):
         curr_iters = movingaverage(iters[i], 300)
-        ax1.plot(expR[i] * 1000, curr_iters, label=labels[i], linewidth=1)
+        ax1.plot((1.0 - eTe[i]) * 1000, curr_iters, label=labels[i], linewidth=1)
         # curr_comp_time = movingaverage(comp_time[i], 1500)
         # ax1.plot(time[i], curr_comp_time, label=labels[i], linewidth=0.75)
 
@@ -250,8 +250,17 @@ def main():
     # sys.argv.append('imc_n1_vrel.txt')
     # sys.argv.append('imc_n1_vrel_scaledenergy.txt')
     # sys.argv.append('imc_n1_final.txt')
-    sys.argv.append('imc_n2_vrel_scaledenergy.txt')
+    # sys.argv.append('imc_n2_vrel_scaledenergy.txt')
+    # sys.argv.append('imc_n2_final.txt')
+
+    sys.argv.append('imc_n1_ps1cm.txt')
+    sys.argv.append('imc_n2_ps1cm.txt')
+    sys.argv.append('imc_n3_ps1cm.txt')
+    sys.argv.append('imc_n4_ps1cm.txt')
+    sys.argv.append('imc_n1_final.txt')
     sys.argv.append('imc_n2_final.txt')
+    sys.argv.append('imc_n3_final.txt')
+    sys.argv.append('imc_n4_final.txt')
     #
     assert len(sys.argv) >= 2, 'File name was not supplied'
     num_plots = len(sys.argv) - 1
@@ -271,11 +280,12 @@ def main():
     # labels = ['$n=1$, IMC', '$n=2, u=9$ mm/s', '$n=2, u=3$ mm/s', '$n=2, u=1$ mm/s'] * 5
     # labels = ['$\mu_k = 0.1$', '$\mu_k = 0.3$', '$\mu_k = 0.5$']
     labels = ['vrel', 'vrel & energy', 'original']
+    labels = ['n=1', 'n=2', 'n=3', 'n=4'] * 2
 
-    # plot_iterations(expR, iters, comp_time, labels)
+    plot_iterations(eTe, iters, comp_time, labels)
     # plot_comp_time(time, iters, comp_time, labels)
     # plot_pull_force(expR, expT, labels, h=0.0016, moving_avg=False)
-    plot_end_to_end_with_normalized_force(expT, eTe, labels, moving_avg=False)
+    # plot_end_to_end_with_normalized_force(expT, eTe, labels, moving_avg=False)
     # plot_normalized_force(expR, expT, eTe, labels)
     # plot_penetration(time, minD)
 
