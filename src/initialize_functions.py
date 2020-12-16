@@ -179,7 +179,8 @@ def ffr_jacobian():
     # Friction Jacobian is only calculated for node i since ffr_i = ffr_i+1 and ffr_j = ffr_j+1 = -ffr_i
     ffr = sy.Matrix([*ffr_e])
 
-    wrt = [*v1s, *v1e, *v2s, *v2e, *f1s, *f1e, *f2s, *f2e]
+    # wrt = [*v1s, *v1e, *v2s, *v2e, *f1s, *f1e, *f2s, *f2e]
+    wrt = [*v1s, *v1e, *v2s, *v2e, *f1s, *f1e, *f2s]
     ffr_grad = create_function(sy.Matrix(ffr).jacobian(wrt), inputs)
 
     return ffr_grad

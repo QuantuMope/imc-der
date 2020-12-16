@@ -161,6 +161,7 @@ def plot_end_to_end_with_normalized_force(expT, eTe, labels, moving_avg=False):
         #              zorder=0, linewidth=0.75)
 
 
+    plt.title('$\mu_k=0.05$')
     plt.xlabel('End-to-end shortening [mm]')
     plt.ylabel('$Fh^2 / EI$')
     plt.legend(loc='lower left', prop={'size': 6})
@@ -169,7 +170,6 @@ def plot_end_to_end_with_normalized_force(expT, eTe, labels, moving_avg=False):
 
     # plt.title('Implicit contact pull forces, $\mu_k=0.10$, $dt=10$ ms', size=14)
     plt.savefig("friction.png", bbox_inches='tight', pad_inches=0.03)
-
 
 
 def plot_normalized_force(expR, expT, eTe, labels):
@@ -206,8 +206,15 @@ def plot_normalized_force(expR, expT, eTe, labels):
 def plot_iterations(eTe, iters, comp_time, labels):
     fig, ax1 = plt.subplots(figsize=(4, 3), dpi=600)
     for i in range(len(eTe)):
+        color = 'C0' if i < 4 else 'C3'
         curr_iters = movingaverage(iters[i], 300)
-        ax1.plot((1.0 - eTe[i]) * 1000, curr_iters, label=labels[i], linewidth=1)
+        # ax1.plot((1.0 - eTe[i]) * 1000, curr_iters, color=color, label=labels[i], linewidth=1)
+        if i == 0:
+            ax1.plot((1.0 - eTe[i]) * 1000, curr_iters, color=color, label='Relative Velocity', linewidth=1)
+        elif i == 4:
+            ax1.plot((1.0 - eTe[i]) * 1000, curr_iters, color=color, label='Tangential', linewidth=1)
+        else:
+            ax1.plot((1.0 - eTe[i]) * 1000, curr_iters, color=color, linewidth=1)
         # curr_comp_time = movingaverage(comp_time[i], 1500)
         # ax1.plot(time[i], curr_comp_time, label=labels[i], linewidth=0.75)
 
@@ -216,7 +223,7 @@ def plot_iterations(eTe, iters, comp_time, labels):
     #     curr_comp_time = movingaverage(comp_time[i], 1500)
     #     ax2.scatter(time[i], curr_comp_time, '^', label=labels[i])
 
-    ax1.set_xlabel('R [mm]')
+    ax1.set_xlabel('End-to-end shortening [mm]')
     ax1.set_ylabel('iterations to convergence')
     # ax2.set_ylabel('total computation time per time step [s]')
     # ax2.set_ylim(0.01, 0.115)  # SPT
@@ -250,13 +257,13 @@ def main():
     # sys.argv.append('imc_n1_vrel.txt')
     # sys.argv.append('imc_n1_vrel_scaledenergy.txt')
     # sys.argv.append('imc_n1_final.txt')
-    # sys.argv.append('imc_n2_vrel_scaledenergy.txt')
-    # sys.argv.append('imc_n2_final.txt')
+    # sys.argv.append('imc_n3_final.txt')
+    # sys.argv.append('imc_n3_vrel_scaledenergy.txt')
 
-    sys.argv.append('imc_n1_ps1cm.txt')
-    sys.argv.append('imc_n2_ps1cm.txt')
-    sys.argv.append('imc_n3_ps1cm.txt')
-    sys.argv.append('imc_n4_ps1cm.txt')
+    sys.argv.append('imc_n1_tvrel_mu0.05.txt')
+    sys.argv.append('imc_n2_tvrel_mu0.05.txt')
+    sys.argv.append('imc_n3_tvrel_mu0.05.txt')
+    sys.argv.append('imc_n4_tvrel_mu0.05.txt')
     sys.argv.append('imc_n1_final.txt')
     sys.argv.append('imc_n2_final.txt')
     sys.argv.append('imc_n3_final.txt')
@@ -280,12 +287,13 @@ def main():
     # labels = ['$n=1$, IMC', '$n=2, u=9$ mm/s', '$n=2, u=3$ mm/s', '$n=2, u=1$ mm/s'] * 5
     # labels = ['$\mu_k = 0.1$', '$\mu_k = 0.3$', '$\mu_k = 0.5$']
     labels = ['vrel', 'vrel & energy', 'original']
+    labels = ['Tangential', 'Relative Velocity']
     labels = ['n=1', 'n=2', 'n=3', 'n=4'] * 2
 
     plot_iterations(eTe, iters, comp_time, labels)
     # plot_comp_time(time, iters, comp_time, labels)
     # plot_pull_force(expR, expT, labels, h=0.0016, moving_avg=False)
-    # plot_end_to_end_with_normalized_force(expT, eTe, labels, moving_avg=False)
+    plot_end_to_end_with_normalized_force(expT, eTe, labels, moving_avg=False)
     # plot_normalized_force(expR, expT, eTe, labels)
     # plot_penetration(time, minD)
 
