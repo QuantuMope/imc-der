@@ -302,11 +302,12 @@ class IMC:
 
         ffr_jacobian = np.zeros((ffr_grad_s.shape[0], 12, 12), dtype=np.float64)
 
-        ffr_j = ffr_grad_s[:, :, :12] @ dvdx + ffr_grad_s[:, :, 12:] @ d2edx2
-        ffr_jacobian[:, :3]  = ffr_j
-        ffr_jacobian[:, 3:6] = ffr_j
-        ffr_jacobian[:, 6:9] = -ffr_j
-        ffr_jacobian[:, 9:]  = -ffr_j
+        ffr_1 = 0.5 * (ffr_grad_s[:, :3, :12] @ dvdx + ffr_grad_s[:, :3, 12:] @ d2edx2)
+        ffr_2 = 0.5 * (ffr_grad_s[:, 3:, :12] @ dvdx + ffr_grad_s[:, 3:, 12:] @ d2edx2)
+        ffr_jacobian[:, :3]  = ffr_1
+        ffr_jacobian[:, 3:6] = ffr_1
+        ffr_jacobian[:, 6:9] = ffr_2
+        ffr_jacobian[:, 9:]  = ffr_2
 
         return ffr_jacobian
 
@@ -406,9 +407,11 @@ class IMC:
         ffr = self._get_ffr(velocities, dedx, self.mu_k)
 
         # Calculate the incomplete friction force gradients
-        ffr_grad_s = self.ffr_jacobian_func(*ffr_jacobian_input).reshape((num_inputs, 3, 24))
+        ffr_grad_s = self.ffr_jacobian_func(*ffr_jacobian_input).reshape((num_inputs, 6, 24))
 
         ffr_jacobian = self._chain_rule_friction_jacobian(ffr_grad_s, dvdx, d2edx2)
+        print('contact hessian: {}'.format((np.abs(d2edx2)).max()))
+        print('friction jacobian: {}'.format((np.abs(ffr_jacobian)).max()))
 
         if self.friction:
             total_forces = dedx + ffr

@@ -163,24 +163,28 @@ def ffr_jacobian():
 
     fn1 = sy.sqrt(((f1s + f1e)**2).sum())
     fn2 = sy.sqrt(((f2s + f2e)**2).sum())
-    fn  = 0.5 * (fn1 + fn2)
+
+    fn1_u = (f1s + f1e) / fn1
+    fn2_u = (f2s + f2e) / fn2
 
     v1 = 0.5 * (v1s + v1e)
     v2 = 0.5 * (v2s + v2e)
-    v_rel = v1 - v2
-    v_rel_u = v_rel / sy.sqrt((v_rel**2).sum())
+    v_rel1 = v1 - v2
+    tv_rel1 = v_rel1 - (v_rel1.dot(fn1_u) * fn1_u)
+    tv_rel1_u = tv_rel1 / sy.sqrt((tv_rel1**2).sum())
 
-    ffr_val = mu_k * fn
+    v_rel2 = -v_rel1
+    tv_rel2 = v_rel2 - (v_rel2.dot(fn2_u) * fn2_u)
+    tv_rel2_u = tv_rel2 / sy.sqrt((tv_rel2**2).sum())
 
-    ffr_e = 0.5 * v_rel_u * ffr_val
+    ffr_e1 = mu_k * tv_rel1_u * fn1
+    ffr_e2 = mu_k * tv_rel2_u * fn2
 
     inputs = [*v1s, *v1e, *v2s, *v2e, *f1s, *f1e, *f2s, *f2e, mu_k]
 
-    # Friction Jacobian is only calculated for node i since ffr_i = ffr_i+1 and ffr_j = ffr_j+1 = -ffr_i
-    ffr = sy.Matrix([*ffr_e])
+    ffr = sy.Matrix([*ffr_e1, *ffr_e2])
 
-    # wrt = [*v1s, *v1e, *v2s, *v2e, *f1s, *f1e, *f2s, *f2e]
-    wrt = [*v1s, *v1e, *v2s, *v2e, *f1s, *f1e, *f2s]
+    wrt = [*v1s, *v1e, *v2s, *v2e, *f1s, *f1e, *f2s, *f2e]
     ffr_grad = create_function(sy.Matrix(ffr).jacobian(wrt), inputs)
 
     return ffr_grad
