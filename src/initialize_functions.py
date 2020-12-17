@@ -171,14 +171,19 @@ def ffr_jacobian():
     v2 = 0.5 * (v2s + v2e)
     v_rel1 = v1 - v2
     tv_rel1 = v_rel1 - (v_rel1.dot(fn1_u) * fn1_u)
-    tv_rel1_u = tv_rel1 / sy.sqrt((tv_rel1**2).sum())
+    tv_rel1_n = sy.sqrt((tv_rel1 ** 2).sum())
+    tv_rel1_u = tv_rel1 / sy.sqrt((tv_rel1 ** 2).sum())
 
     v_rel2 = -v_rel1
     tv_rel2 = v_rel2 - (v_rel2.dot(fn2_u) * fn2_u)
-    tv_rel2_u = tv_rel2 / sy.sqrt((tv_rel2**2).sum())
+    tv_rel2_n = sy.sqrt((tv_rel2 ** 2).sum())
+    tv_rel2_u = tv_rel2 / tv_rel2_n
 
-    ffr_e1 = mu_k * tv_rel1_u * fn1
-    ffr_e2 = mu_k * tv_rel2_u * fn2
+    heaviside1 = 1 / (1 + sy.exp(-50.0 * (tv_rel1_n - 0.15)))
+    heaviside2 = 1 / (1 + sy.exp(-50.0 * (tv_rel2_n - 0.15)))
+
+    ffr_e1 = heaviside1 * mu_k * tv_rel1_u * fn1
+    ffr_e2 = heaviside2 * mu_k * tv_rel2_u * fn2
 
     inputs = [*v1s, *v1e, *v2s, *v2e, *f1s, *f1e, *f2s, *f2e, mu_k]
 

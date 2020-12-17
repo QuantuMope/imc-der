@@ -105,7 +105,7 @@ class IMC:
 
         num_inputs = velocities.shape[0]
 
-        fn = np.sqrt(((f1s + f1e)**2).sum(axis=1))
+        fn = np.sqrt(((f1s + f1e) ** 2).sum(axis=1))
         ffr_val = mu_k * fn
 
         v1 = 0.5 * (v1s + v1e)
@@ -117,17 +117,21 @@ class IMC:
         rem = np.zeros_like(v_rel)
         for i in range(num_inputs):
             rem[i] = v_rel[i].dot(norm[i]) * norm[i]
-        v_rel = v_rel - rem
-        v_rel = v_rel / (np.sqrt((v_rel**2).sum(axis=1))).reshape(num_inputs, 1)
+        tv_rel = v_rel - rem
+        tv_rel_n = (np.sqrt((tv_rel ** 2).sum(axis=1))).reshape((num_inputs, 1))
 
-        ffr_e = 0.5 * v_rel * ffr_val.reshape((num_inputs, 1))
+        heaviside = 1 / (1 + np.exp(-50.0 * (tv_rel_n - 0.15)))
 
-        ffr = np.zeros((num_inputs, 12), dtype=np.float64)
+        tv_rel_u = tv_rel / tv_rel_n
 
-        ffr[:, :3]  = ffr_e
+        ffr_e = 0.5 * heaviside * tv_rel_u * ffr_val.reshape((num_inputs, 1))
+
+        ffr = np.zeros_like(velocities, dtype=np.float64)
+
+        ffr[:, :3] = ffr_e
         ffr[:, 3:6] = ffr_e
         ffr[:, 6:9] = -ffr_e
-        ffr[:, 9:]  = -ffr_e
+        ffr[:, 9:] = -ffr_e
 
         return ffr
 
@@ -410,8 +414,6 @@ class IMC:
         ffr_grad_s = self.ffr_jacobian_func(*ffr_jacobian_input).reshape((num_inputs, 6, 24))
 
         ffr_jacobian = self._chain_rule_friction_jacobian(ffr_grad_s, dvdx, d2edx2)
-        print('contact hessian: {}'.format((np.abs(d2edx2)).max()))
-        print('friction jacobian: {}'.format((np.abs(ffr_jacobian)).max()))
 
         if self.friction:
             total_forces = dedx + ffr

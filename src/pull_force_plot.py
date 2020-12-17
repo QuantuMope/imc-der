@@ -208,13 +208,13 @@ def plot_iterations(eTe, iters, comp_time, labels):
     for i in range(len(eTe)):
         color = 'C0' if i < 4 else 'C3'
         curr_iters = movingaverage(iters[i], 300)
-        # ax1.plot((1.0 - eTe[i]) * 1000, curr_iters, color=color, label=labels[i], linewidth=1)
-        if i == 0:
-            ax1.plot((1.0 - eTe[i]) * 1000, curr_iters, color=color, label='Relative Velocity', linewidth=1)
-        elif i == 4:
-            ax1.plot((1.0 - eTe[i]) * 1000, curr_iters, color=color, label='Tangential', linewidth=1)
-        else:
-            ax1.plot((1.0 - eTe[i]) * 1000, curr_iters, color=color, linewidth=1)
+        ax1.plot((1.0 - eTe[i]) * 1000, curr_iters, label=labels[i], linewidth=1)
+        # if i == 0:
+        #     ax1.plot((1.0 - eTe[i]) * 1000, curr_iters, color=color, label='Relative Velocity', linewidth=1)
+        # elif i == 4:
+        #     ax1.plot((1.0 - eTe[i]) * 1000, curr_iters, color=color, label='Tangential', linewidth=1)
+        # else:
+        #     ax1.plot((1.0 - eTe[i]) * 1000, curr_iters, color=color, linewidth=1)
         # curr_comp_time = movingaverage(comp_time[i], 1500)
         # ax1.plot(time[i], curr_comp_time, label=labels[i], linewidth=0.75)
 
@@ -260,14 +260,8 @@ def main():
     # sys.argv.append('imc_n3_final.txt')
     # sys.argv.append('imc_n3_vrel_scaledenergy.txt')
 
-    sys.argv.append('imc_n1_tvrel_mu0.05.txt')
-    sys.argv.append('imc_n2_tvrel_mu0.05.txt')
-    sys.argv.append('imc_n3_tvrel_mu0.05.txt')
-    sys.argv.append('imc_n4_tvrel_mu0.05.txt')
-    sys.argv.append('imc_n1_final.txt')
-    sys.argv.append('imc_n2_final.txt')
-    sys.argv.append('imc_n3_final.txt')
     sys.argv.append('imc_n4_final.txt')
+    sys.argv.append('imc_n4_test.txt')
     #
     assert len(sys.argv) >= 2, 'File name was not supplied'
     num_plots = len(sys.argv) - 1
