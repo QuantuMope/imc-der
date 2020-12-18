@@ -27,6 +27,7 @@ class elasticRod
 
     // utility functions
     Vector3d getVertex(int k);
+    Vector3d getPreVertex(int k);
     Vector3d getVelocity(int k);
     Vector3d getTangent(int k);
     double getTheta(int k);

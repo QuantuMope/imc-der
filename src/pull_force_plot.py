@@ -250,7 +250,8 @@ def plot_comp_time(time, iters, comp_time, labels):
 def plot_penetration(time, minD):
     fig = plt.figure(figsize=(4, 3), dpi=300)
     for i in range(len(time)):
-        plt.plot(time[i], minD[i])
+        curr_minD = movingaverage(minD[i], 2000)[2000:-2000]
+        plt.plot(time[i][2000:-2000], curr_minD)
 
 
 def main():
@@ -260,8 +261,17 @@ def main():
     # sys.argv.append('imc_n3_final.txt')
     # sys.argv.append('imc_n3_vrel_scaledenergy.txt')
 
-    sys.argv.append('imc_n4_final.txt')
-    sys.argv.append('imc_n4_test.txt')
+    sys.argv.append('spt_n4_test.txt')
+    sys.argv.append('spt_n4_test1.txt')
+    sys.argv.append('imc_n4_doublepull.txt')
+    sys.argv.append('imc_n4_doublepull1.txt')
+
+    # sys.argv.append('imc_n1_doublepull1.txt')
+    # sys.argv.append('imc_n2_doublepull1.txt')
+    # sys.argv.append('imc_n3_doublepull1.txt')
+    # sys.argv.append('imc_n1_doublepull.txt')
+    # sys.argv.append('imc_n2_doublepull.txt')
+    # sys.argv.append('imc_n3_doublepull.txt')
     #
     assert len(sys.argv) >= 2, 'File name was not supplied'
     num_plots = len(sys.argv) - 1
@@ -283,6 +293,7 @@ def main():
     labels = ['vrel', 'vrel & energy', 'original']
     labels = ['Tangential', 'Relative Velocity']
     labels = ['n=1', 'n=2', 'n=3', 'n=4'] * 2
+    labels = ['spt n4 v0.03', 'spt n4 v0.01', 'imc n4 v0.01', 'imc n4 v0.03']
 
     plot_iterations(eTe, iters, comp_time, labels)
     # plot_comp_time(time, iters, comp_time, labels)

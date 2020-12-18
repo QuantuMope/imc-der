@@ -21,13 +21,13 @@ friction 1
 viscosity 0.01
 deltaTime 1e-3
 waitTime 10
-pullTime 103
+pullTime 35
 releaseTime 0
-pullSpeed 0.003
+pullSpeed 0.006
 col 0.15
-con 0.00003
+con 0.003
 ce_k 50
 S 625
 mu_k 0.10
 knotConfig n4
-port 50021
+port 50022

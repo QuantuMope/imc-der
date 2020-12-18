@@ -259,7 +259,7 @@ void world::updateTimeStep()
 
     updateBoundary();
 
-    rod->updateGuess();
+//    rod->updateGuess();  // our guess is just the previous position
     newtonMethod(solved);
 
     // calculate pull forces;
