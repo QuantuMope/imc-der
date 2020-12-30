@@ -51,7 +51,8 @@ void collision::computeFc()
     for (int i=0; i < rod->ndof; i++)
     {
         if ((i+1) % 4 == 0) continue;
-        stepper->addForce(i, contact_forces[force_index]);
+        if (contact_forces[force_index] != 0)
+            stepper->addForce(i, contact_forces[force_index]);
         force_index++;
     }
 }
@@ -66,7 +67,8 @@ void collision::computeJc()
         for (int j = 0; j < rod->ndof; j++)
         {
             if ((j+1) % 4 == 0) continue;
-            stepper->addJacobian(i, j, contact_hessian[jacob_index]);
+            if (contact_hessian[jacob_index] != 0)
+                stepper->addJacobian(i, j, contact_hessian[jacob_index]);
             jacob_index++;
         }
     }
