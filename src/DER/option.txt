@@ -15,7 +15,7 @@ saveData 1
 recordNodes 0
 recordNodesStart 10.0
 recordNodesEnd 10.10
-contactMode 2
+contactMode 1
 limit 20
 friction 1
 viscosity 0.01
