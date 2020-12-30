@@ -189,7 +189,7 @@ def ffr_jacobian():
 
     ffr = sy.Matrix([*ffr_e1, *ffr_e2])
 
-    wrt = [*v1s, *v1e, *v2s, *v2e, *f1s, *f1e, *f2s, *f2e]
+    wrt = [*f1s, *f1e, *f2s, *f2e]
     ffr_grad = create_function(sy.Matrix(ffr).jacobian(wrt), inputs)
 
     return ffr_grad
