@@ -462,7 +462,7 @@ class IMC:
             hessian = int(self.meta_data[5])
             first_iter = int(self.meta_data[0])
             self.friction = int(self.meta_data[1])
-            dt = self.meta_data[6]
+            # dt = self.meta_data[6]
 
             # Scale the nodal coordinates by scaling factor
             self.node_coordinates *= self.scale
@@ -471,7 +471,6 @@ class IMC:
             if first_iter:
                 self.velocities *= self.scale
                 edge_ids, closest_distance = self._detect_collisions()
-                computed_dvdx = False  # reset dvdx flag
 
             # Reset all gradient and hessian values to 0
             self.forces[:] = 0.
@@ -508,7 +507,6 @@ class IMC:
                                                     self.meta_data[4],
                                                     self.contact_stiffness,
                                                     self.friction))
-                velocities_pre = self.velocities.copy()
 
 
 def main():
