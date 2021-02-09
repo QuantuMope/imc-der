@@ -1,5 +1,4 @@
 import numpy as np
-import sympy as sy
 import symengine as se
 from numba import njit
 
@@ -12,19 +11,19 @@ def create_function(ele, wrt):
     return se.Lambdify(wrt, ele, cse=True, backend="llvm")
 
 
-def approx_fixbound_sy(x, k):
+def approx_fixbound_se(x, k):
     """ H(x) """
-    return (1 / k) * (sy.log(1 + sy.exp(k * x)) - sy.log(1 + sy.exp(k * (x - 1.0))))
+    return (1 / k) * (se.log(1 + se.exp(k * x)) - se.log(1 + se.exp(k * (x - 1.0))))
 
 
-def log_func_sy(x, k, c=0.5):
-    return 1 / (1 + sy.exp(-k*(x-c)))
+def log_func_se(x, k, c=0.5):
+    return 1 / (1 + se.exp(-k*(x-c)))
 
 
-def boxcar_func_sy(x, k):
+def boxcar_func_se(x, k):
     """ B(x) """
-    step1 = log_func_sy(x, k, 0.00)
-    step2 = log_func_sy(x, k, 1.00)
+    step1 = log_func_se(x, k, 0.00)
+    step2 = log_func_se(x, k, 1.00)
     return step1 - step2
 
 
