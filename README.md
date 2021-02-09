@@ -7,16 +7,16 @@ and uses the gradient (Forces) and Hessian (Jacobian) to simulate contact.
 ***
 #### How to use
 First, the necessary functions must be generated and stored. Use the following command line argument to
-create the functions for a certain contact energy stiffness (ce_k) and contact distance (h2, two times the radius).
+create the functions for a certain contact energy stiffness (ce_k) and scaled contact distance (h2, two times the radius).
 ```bash
 cd src                                   # go to source code directory
 python3 initialize_functions.py ce_k h2  # a good value is ce_k = 50.0 and h2 = 2.0
 ```
-This should take a couple minutes as the functions are compiled using LLVM. After the functions are generated once, the simulator
+This should only take a few seconds since changing the symbolic differentiation from sympy to symengine. After the functions are generated once, the simulator
 can be run with the following commands.
 ```bash
 cd DER                 # go to the DER directory
-make                   # compile the program if not previously done
+make -j4               # compile the program
 make run               # run the program
 ```
 The option.txt contains all simulation settings. Please refer to the README.txt in the DER directory for a description
@@ -36,6 +36,7 @@ If at least Python 3.6 is not used, remove the @njit decorator in imc.py and imc
 ```bash
 pip3 install numpy sympy symengine matplotlib dill posix_ipc numba
 ```
+C++ dependencies are listed in the README.txt in the DER directory.
 Furthermore, this program uses the Pardiso solver which can be found [here](https://www.pardiso-project.org/).
 ***
 #### Dependencies for proper cross language data transfer
