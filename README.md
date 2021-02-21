@@ -1,6 +1,6 @@
-## Implicit Contact Method
-Contact method for 3D elastic rod simulations. Uses Discrete Elastic Rod (DER) framework and incorporates contact forces. Formulates "contact energy" as a twice differentiable analytical expression 
-and uses the gradient (Forces) and Hessian (Jacobian) to simulate contact.
+## Implicit Contact Method (IMC)
+Contact method for 3D elastic rod simulations. Uses Discrete Elastic Rod (DER) framework and incorporates contact and friction. Formulates a contact potential as a twice differentiable analytical expression 
+and uses the subsequent gradient (Forces) and Hessian (Jacobian) to simulate contact. The full paper can be found [here](https://asmedigitalcollection.asme.org/appliedmechanics/article-abstract/doi/10.1115/1.4050238/1099667/Implicit-Contact-Model-for-Discrete-Elastic-Rods?redirectedFrom=fulltext).
 
 ![](images/knot_tying.png)
 
