@@ -8,6 +8,20 @@ from numba import njit
 from imc_utils import *
 
 
+"""
+TODO: further optimize hessian chain rule code
+
+Currently for hessian chain ruling, we are computing d^2E/dvdx directly by an expensive 
+chain ruling procedure where v is one of the elements from u that makes up E(x) = f(u(x)).
+This is done for all 15 vars v that make up u. This can be improved if we instead calculate
+this term by the following:
+
+                               d^2E    d^2E    / dv \^2
+                               ---- =  ---- * ( ---- )
+                               dvdx    dv^2    \ dx /
+"""
+
+
 class IMC:
     def __init__(self, params):
         # Load parameters
@@ -242,6 +256,7 @@ class IMC:
 
         # Perform chain rule to obtain d^2E/dd1x, d^2E/dd2x, and so on
         # These are necessary to compute the chain rule for hessian.
+        """ TODO HERE """
         s_hess_vals_pre = s_hess_vals_pre.reshape((15, num_inputs, 15, 1))
         for i in range(15):
             curr_s = s_hess_vals_pre[i]

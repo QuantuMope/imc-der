@@ -9,12 +9,13 @@ import symengine as se
 
 """
 Above, we are importing modules in a fairly messy order as segmentation faults occur when 
-symengine and numba are imported in a certain order. The above import order works reliably though.
+symengine and numba are imported in a certain order. This problem currently remains unsolved.
+
+The above import order works reliably so should not be changed.
 
 A github issue pertaining to this can be seen here:
 https://github.com/numba/numba/issues/6717
 """
-
 
 
 def initialize_functions(ce_k, h2):
