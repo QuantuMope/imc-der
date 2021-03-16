@@ -5,6 +5,11 @@ and uses the subsequent gradient (Forces) and Hessian (Jacobian) to simulate con
 ![](images/knot_tying.png)
 
 ***
+#### TODOs
+- Optimize hessian chain rule procedure (more details in src/imc.py)
+- Convert IMC code to C++
+
+***
 #### How to use
 First, the necessary functions must be generated and stored. Use the following command line argument to
 create the functions for a certain contact energy stiffness (ce_k) and scaled contact distance (h2, two times the radius).
