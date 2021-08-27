@@ -2,7 +2,11 @@
 Contact method for 3D elastic rod simulations. Uses Discrete Elastic Rod (DER) framework and incorporates contact and friction. Formulates a contact potential as a twice differentiable analytical expression 
 and uses the subsequent gradient (Forces) and Hessian (Jacobian) to simulate contact. The published method can be found [here](misc/imc_paper.pdf) along with a [graphical abstract](https://www.youtube.com/watch?v=yq4-m0G0D4g&feature=youtu.be).
 
-![](images/knot_tying.png)
+<p align="center">
+<img src="images/knot_tying.png" alt>
+<br>
+<em> Figure 1. Simulation examples for tying overhand knots with various unknotting numbers. </em>
+</p>
 
 ***
 #### TODOs
