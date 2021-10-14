@@ -4,7 +4,26 @@ import dill as pickle
 import numpy as np
 import symengine as se
 from time import time
-from imc_utils import *
+
+
+def create_function(ele, wrt):
+    return se.Lambdify(wrt, ele, cse=True, backend="llvm")
+
+
+def approx_fixbound_se(x, k):
+    """ H(x) """
+    return (1 / k) * (se.log(1 + se.exp(k * x)) - se.log(1 + se.exp(k * (x - 1.0))))
+
+
+def log_func_se(x, k, c=0.5):
+    return 1 / (1 + se.exp(-k*(x-c)))
+
+
+def boxcar_func_se(x, k):
+    """ B(x) """
+    step1 = log_func_se(x, k, 0.00)
+    step2 = log_func_se(x, k, 1.00)
+    return step1 - step2
 
 
 def generate_functions(ce_k, h2):
