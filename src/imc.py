@@ -8,20 +8,6 @@ from numba import njit
 from imc_utils import *
 
 
-"""
-TODO: further optimize hessian chain rule code
-
-Currently for hessian chain ruling, we are computing d^2E/dvdx directly by an expensive 
-chain ruling procedure where v is one of the elements from u that makes up E(x) = f(u(x)).
-This is done for all 15 vars v that make up u. This can be improved if we instead calculate
-this term by the following:
-
-                               d^2E    d^2E    / dv \^2
-                               ---- =  ---- * ( ---- )
-                               dvdx    dv^2    \ dx /
-"""
-
-
 class IMC:
     def __init__(self, params):
         # Load parameters
@@ -37,8 +23,8 @@ class IMC:
         self.contact_len = self.radius * 2
         ce_k = params['ce_k']
         cekr = '_cek_' + str(ce_k) + '_h2_' + str(self.contact_len)
-        func_names = ['dd', 'first_grad', 'constant_hess', 'first_hess', 'second_grad' + cekr,
-                      'second_hess' + cekr, 'friction_jacobian']
+        func_names = ['de', 'first_grad', 'constant_hess', 'first_hess', 'second_derivative' + cekr,
+                      'second_order_partials' + cekr, 'friction_jacobian']
 
         # Load pre-generated functions
         dir = './grads_hessian_functions/'
@@ -47,12 +33,12 @@ class IMC:
             with open(dir + name, 'rb') as f:
                 functions.append(pickle.load(f))
 
-        self.dd_grads          = functions[0]
+        self.de_grads          = functions[0]
         self.f_grad_funcs      = functions[1]
         self.f_hess_const      = functions[2].reshape((5, 1, 12, 12))
         self.f_hess_func       = functions[3]  # for t2
-        self.s_grad_funcs      = functions[4]
-        self.s_hess_funcs      = functions[5]
+        self.s_derv_funcs      = functions[4]
+        self.s_sopa_funcs      = functions[5]
         self.ffr_jacobian_func = functions[6]
 
         self.friction = 0  # is updated by C++ side
@@ -245,61 +231,59 @@ class IMC:
 
     @staticmethod
     @njit
-    def _optimize_chain_rule(dd_grads, f_grad_vals, s_grad_vals, s_hess_vals_pre, s_hess_vals, dedx):
-        num_inputs = s_grad_vals.shape[0]
+    def _optimize_chain_rule(de_grads, f_grad_vals, s_derv_vals, s_sopa_vals, s_derv2_vals, dedx):
+        num_inputs = s_derv_vals.shape[0]
         # Perform chain rule for contact gradient (forces)
-        # dE/dx = dE/dd1 * dd1/dx + dE/dd2 * dd2/dx + and so on
-        dedx[:] += s_grad_vals[:, :9] @ dd_grads
-        s_grad_vals = s_grad_vals.reshape((num_inputs, 15, 1))
+        # dE/dx = dE/de1 * de1/dx + dE/de2 * de2/dx + and so on
+        dedx[:] += s_derv_vals[:, :9] @ de_grads
+        s_derv_vals = s_derv_vals.reshape((num_inputs, 15, 1))
         for i in range(6):
-            dedx[:] += s_grad_vals[:, i+9] * f_grad_vals[i]
+            dedx[:] += s_derv_vals[:, i+9] * f_grad_vals[i]
 
-        # Perform chain rule to obtain d^2E/dd1x, d^2E/dd2x, and so on
-        # These are necessary to compute the chain rule for hessian.
-        """ TODO HERE """
-        s_hess_vals_pre = s_hess_vals_pre.reshape((15, num_inputs, 15, 1))
+        # Perform chain rule to obtain d^2E/dD1^2, d^2E/dD1D2, and so on
+        # These are necessary to compute the chain rule for computing the overall hessian.
+        s_sopa_vals = s_sopa_vals.reshape((15, num_inputs, 15, 1))
         for i in range(15):
-            curr_s = s_hess_vals_pre[i]
+            curr_s = s_sopa_vals[i]
             for j in range(9):
-                s_hess_vals[i, :] += curr_s[:, j] * dd_grads[j]
+                s_derv2_vals[i, :] += curr_s[:, j] * de_grads[j]
             for j in range(6):
-                s_hess_vals[i, :] += curr_s[:, j+9] * f_grad_vals[j]
+                s_derv2_vals[i, :] += curr_s[:, j+9] * f_grad_vals[j]
 
-    def _chain_rule_contact_hess(self, f_grad_vals, s_grad_vals, f_hess_vals, s_hess_vals_pre):
-        num_inputs = s_grad_vals.shape[0]
+    def _chain_rule_contact_hess(self, f_grad_vals, s_derv_vals, f_hess_vals, s_sopa_vals):
+        num_inputs = s_derv_vals.shape[0]
         dedx = np.zeros((num_inputs, 12), dtype=np.float64)
         d2edx2 = np.zeros((num_inputs, 12, 12), dtype=np.float64)
 
         # Optimize chain rule for code that involves only 2D arrays using numba jit
-        s_hess_vals = np.zeros((15, num_inputs, 12), dtype=np.float64)
+        s_derv2_vals = np.zeros((15, num_inputs, 12), dtype=np.float64)
 
-        self._optimize_chain_rule(self.dd_grads, f_grad_vals, s_grad_vals, s_hess_vals_pre, s_hess_vals, dedx)
+        self._optimize_chain_rule(self.de_grads, f_grad_vals, s_derv_vals, s_sopa_vals, s_derv2_vals, dedx)
 
         # Perform product rule and chain rule for contact hessian
-        # d^2E/dx = d^2E/dd1x * dd1/dx + dE/dd1 * d^2d1/dx^2 + and so on
-        s_grad_vals = s_grad_vals.reshape((num_inputs, 15, 1, 1))
-        s_hess_vals = s_hess_vals.reshape((15, num_inputs, 12, 1))
+        s_derv_vals = s_derv_vals.reshape((num_inputs, 15, 1, 1))
+        s_derv2_vals = s_derv2_vals.reshape((15, num_inputs, 12, 1))
         f_grad_vals = f_grad_vals.reshape((6, num_inputs, 1, 12))
-        dd = self.dd_grads.reshape((9, 1, 12))
+        de = self.de_grads.reshape((9, 1, 12))
         for i in range(9):
-            d2edx2[:] += s_hess_vals[i] @ dd[i]
+            d2edx2[:] += s_derv2_vals[i] @ de[i]
         for i in range(5):
-            d2edx2[:] += s_grad_vals[:, i+9] * self.f_hess_const[i]
-            d2edx2[:] += s_hess_vals[i + 9] @ f_grad_vals[i]
-        d2edx2[:] += s_grad_vals[:, -1] * f_hess_vals
-        d2edx2[:] += s_hess_vals[-1] @ f_grad_vals[-1]
+            d2edx2[:] += s_derv_vals[:, i+9] * self.f_hess_const[i]
+            d2edx2[:] += s_derv2_vals[i + 9] @ f_grad_vals[i]
+        d2edx2[:] += s_derv_vals[:, -1] * f_hess_vals
+        d2edx2[:] += s_derv2_vals[-1] @ f_grad_vals[-1]
 
         return dedx, d2edx2
 
     @staticmethod
     @njit
-    def _chain_rule_contact_nohess(dd_grads, f_grad_vals, s_grad_vals):
-        num_inputs = s_grad_vals.shape[0]
+    def _chain_rule_contact_nohess(de_grads, f_grad_vals, s_derv_vals):
+        num_inputs = s_derv_vals.shape[0]
         dedx = np.zeros((num_inputs, 12), dtype=np.float64)
-        dedx[:] += s_grad_vals[:, :9] @ dd_grads
-        s_grad_vals = s_grad_vals.reshape((num_inputs, 15, 1))
+        dedx[:] += s_derv_vals[:, :9] @ de_grads
+        s_derv_vals = s_derv_vals.reshape((num_inputs, 15, 1))
         for i in range(6):
-            dedx[:] += s_grad_vals[:, i+9] * f_grad_vals[i]
+            dedx[:] += s_derv_vals[:, i+9] * f_grad_vals[i]
 
         return dedx
 
@@ -371,15 +355,15 @@ class IMC:
         f_grad_vals = np.array([f_grad(*edges) for f_grad in self.f_grad_funcs], dtype=np.float64).squeeze()
 
         # Get second contact energy gradients
-        s_grad_vals = np.array([s_grad(*s_input_vals) for s_grad in self.s_grad_funcs], dtype=np.float64).T
+        s_derv_vals = np.array([s_derv(*s_input_vals) for s_derv in self.s_derv_funcs], dtype=np.float64).T
 
         # Reshape data structures for proper indexing in case of only one collision
         if num_inputs == 1:
-            s_grad_vals = s_grad_vals.reshape((1, 15))
+            s_derv_vals = s_derv_vals.reshape((1, 15))
             f_grad_vals = f_grad_vals.reshape((6, 1, 12))
 
         # Perform chain ruling to get contact gradient and hessian
-        dedx = self._chain_rule_contact_nohess(self.dd_grads, f_grad_vals, s_grad_vals)
+        dedx = self._chain_rule_contact_nohess(self.de_grads, f_grad_vals, s_derv_vals)
 
         # Calculate friction forces on all four nodes
         ffr = self._get_ffr(velocities, dedx, self.mu_k)
@@ -405,19 +389,19 @@ class IMC:
         f_hess_vals = np.array(self.f_hess_func(*edges), dtype=np.float64)
 
         # Get second contact energy gradients
-        s_grad_vals = np.array([s_grad(*s_input_vals) for s_grad in self.s_grad_funcs], dtype=np.float64).T
+        s_derv_vals = np.array([s_derv(*s_input_vals) for s_derv in self.s_derv_funcs], dtype=np.float64).T
 
         # Get second contact energy hessians
-        s_hess_vals_pre = np.array([s_hess(*s_input_vals) for s_hess in self.s_hess_funcs], dtype=np.float64).squeeze()
+        s_sopa_vals = np.array([s_sopa(*s_input_vals) for s_sopa in self.s_sopa_funcs], dtype=np.float64).squeeze()
 
         # Reshape data structures for proper indexing in case of only one collision
         if num_inputs == 1:
-            s_grad_vals = s_grad_vals.reshape((1, 15))
-            s_hess_vals_pre = s_hess_vals_pre.reshape((15, 1, 15))
+            s_derv_vals = s_derv_vals.reshape((1, 15))
+            s_sopa_vals = s_sopa_vals.reshape((15, 1, 15))
             f_grad_vals = f_grad_vals.reshape((6, 1, 12))
 
         # Perform chain ruling to get contact gradient and hessian
-        dedx, d2edx2 = self._chain_rule_contact_hess(f_grad_vals, s_grad_vals, f_hess_vals, s_hess_vals_pre)
+        dedx, d2edx2 = self._chain_rule_contact_hess(f_grad_vals, s_derv_vals, f_hess_vals, s_sopa_vals)
 
         # Prepare inputs for friction force functions
         ffr_jacobian_input = self._get_ffr_jacobian_inputs(velocities, dedx, self.mu_k)

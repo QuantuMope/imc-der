@@ -1,21 +1,10 @@
 import os
 import sys
 import dill as pickle
-from time import time
-import imc
-from imc_utils import *
 import numpy as np
 import symengine as se
-
-"""
-Above, we are importing modules in a fairly messy order as segmentation faults occur when 
-symengine and numba are imported in a certain order. This problem currently remains unsolved.
-
-The above import order works reliably so should not be changed.
-
-A github issue pertaining to this can be seen here:
-https://github.com/numba/numba/issues/6717
-"""
+from time import time
+from imc_utils import *
 
 
 def initialize_functions(ce_k, h2):
@@ -27,27 +16,18 @@ def initialize_functions(ce_k, h2):
 
     if not os.path.exists(dir): os.makedirs(dir)
 
-    if os.path.isfile(dir + 'first_grad'):
-        print('Functions have already been generated previously for a different ce_k, h2 pair. '
-              'Redundant functions will be skipped.')
-        print('If all functions wish to be remade, delete grads_hessian_functions directory')
-        f1 = []
-    else:
-        print('Functions are being generated for the first time. All functions will be created.')
-        dd, f_g, f_ch, f_h = first_grads_and_hessian()
-        ffr = ffr_jacobian()
-
-        f1 = [(dd, 'dd'), (f_g, 'first_grad'), (f_ch, 'constant_hess'), (f_h, 'first_hess'), (ffr, 'friction_jacobian')]
-
-    s_g, s_h = second_grads_and_hessian(ce_k, h2)
+    de, f_g, f_ch, f_h = first_grads_and_hessian()
+    s_d, s_op = second_derivatives_and_second_order_partials(ce_k, h2)
+    ffr = ffr_jacobian()
 
     cekr = '_cek_' + str(ce_k) + '_h2_' + str(h2)
 
-    f2 = [(s_g, 'second_grad' + cekr), (s_h, 'second_hess' + cekr)]
+    functions = [(de, 'de'), (f_g, 'first_grad'), (f_ch, 'constant_hess'), (f_h, 'first_hess'),
+                 (ffr, 'friction_jacobian'), (s_d, 'second_derivative' + cekr),
+                 (s_op, 'second_order_partials' + cekr)]
 
     pickle.settings['recurse'] = True
-    all_functions = f1 + f2
-    for func, name in all_functions:
+    for func, name in functions:
         with open(dir + name, 'wb') as f:
             pickle.dump(func, f)
 
@@ -55,12 +35,12 @@ def initialize_functions(ce_k, h2):
 def first_grads_and_hessian(k1=50.0):
     """
         x is a (1x12) vector
-        Gradients: dd1/dx | dd2/dx | dd12/dx are (3x12), there hessians are all zero
+        Gradients: de1/dx | de2/dx | de12/dx are (3x12), there hessians are all zero
                    dD1/dx | dD2/dx | dR/dx   | dS1/dx | dS2/dx | dt2/dx are (1x12)
-        Hessian :  exist only for the (1x12) gradients and are (12x12)
+        Hessian :  0 for e1, e2, and e12. Others are (12x12)
     """
     start = time()
-    print('Starting first gradients and hessians')
+    print('Starting first gradients and hessians...')
 
     # Declare symbolic variables
     x1s = se.symarray('x1s', 3)
@@ -69,91 +49,95 @@ def first_grads_and_hessian(k1=50.0):
     x2e = se.symarray('x2e', 3)
 
     # First half of the min-distance algorithm
-    d1 = x1e - x1s
-    d2 = x2e - x2s
-    d12 = x2s - x1s
-    D1 = (d1 ** 2).sum()
-    D2 = (d2 ** 2).sum()
-    S1 = (d1 * d12).sum()
-    S2 = (d2 * d12).sum()
-    R = (d1 * d2).sum()
+    e1 = x1e - x1s
+    e2 = x2e - x2s
+    e12 = x2s - x1s
+    D1 = (e1 ** 2).sum()
+    D2 = (e2 ** 2).sum()
+    S1 = (e1 * e12).sum()
+    S2 = (e2 * e12).sum()
+    R = (e1 * e2).sum()
     den = D1 * D2 - R ** 2
     t1 = se.Piecewise((((S1 * D2 - S2 * R) / den), se.Ne(den, 0.0)), (0.0, True))  # avoid division by zero
     t2 = approx_fixbound_se(t1, k=k1)
 
     wrt = se.Matrix([*x1s, *x1e, *x2s, *x2e])
 
-    # No need to create a function for dd1/dx | dd2/dx | dd12/dx because they are constant.
+    # No need to create a function for de1/dx | de2/dx | de12/dx because they are constant.
     # These are constant gradients
-    dd = np.zeros((9, 12), dtype=np.float64)
-    dd[:3]  = np.array(se.Matrix(d1).jacobian(wrt)).astype(np.float64)
-    dd[3:6] = np.array(se.Matrix(d2).jacobian(wrt)).astype(np.float64)
-    dd[6:]  = np.array(se.Matrix(d12).jacobian(wrt)).astype(np.float64)
+    de = np.zeros((9, 12), dtype=np.float64)
+    de[:3]  = np.array(se.Matrix(e1).jacobian(wrt)).astype(np.float64)
+    de[3:6] = np.array(se.Matrix(e2).jacobian(wrt)).astype(np.float64)
+    de[6:]  = np.array(se.Matrix(e12).jacobian(wrt)).astype(np.float64)
 
-    # Exclude d1 d2 and d12 since their hessians are all zero
+    # Exclude e1 e2 and e12 since their hessians are all zero
     ele = se.Matrix([D1, D2, R, S1, S2, t2])
 
     # Compute dD1/dx | dD2/dx | dR/dx | dS1/dx | dS2/dx | dt2/dx
     gv = [se.Matrix([e]).jacobian(wrt) for e in ele]
+
+    # Compute d^D1/dx^2 | d^2D2/dx^2 | d^2R/dx^2 | d^2S1/dx^2 | d^S2/dx^2 | d^2t2/dx^2
     hv = [g.T.jacobian(wrt) for g in gv]
 
-    # Compute functions to compute gradients with nodal coordinates as input
+    # Create functions for the gradients
     grads = [create_function(g, wrt) for g in gv]
 
-    # These are constant matrices
+    # These are constant hessian matrices
     constant_hess = np.array([h for h in hv[:-1]]).reshape((5, 12, 12)).astype(np.float64)
 
-    # Compute function gradient of dt2/dx
+    # Create hessian function for d^2t2/dx^2
     hess = create_function(hv[-1], wrt)  # only t2 Hessian is non-constant
 
     print('Completed first contact gradient and hessian: {:.3f} seconds'.format(time() - start))
 
-    return dd, grads, constant_hess, hess
+    return de, grads, constant_hess, hess
 
 
-def second_grads_and_hessian(ce_k, h2, k1=50.0, k2=50.0):
+def second_derivatives_and_second_order_partials(ce_k, h2, k1=50.0, k2=50.0):
     """
-        Required inputs: d1, d2, d12, D1, D2, R, S1, S2, t2
-        refer to these values as secondary input vals
+        Required inputs: e1, e2, e12, D1, D2, R, S1, S2, t2
 
-        Gradients: dE/dd1 | dE/dd2 | dE/dd12 are all (1x3)
-                   dE/dD1 | dE/dD2 | dE/dR   | dE/S1 | dE/S2 | dE/t2 are all scalars
-        Hessian : hessians wrt d1, d2, d12 not needed
-                  hessians of scalar gradients are also gradients
+        Derivatives: dE/de1 | dE/de2 | dE/de12 are all (1x3)
+                     dE/dD1 | dE/dD2 | dE/dR   | dE/S1 | dE/S2 | dE/t2 are all scalars
+        Second order partials: To compute d/dx(dE/dD1) via chain rule,
+                               we need d^2E/dD1v where v is each of the required inputs
     """
     start = time()
-    print('Starting second gradients and hessians')
+    print('Starting second derivatives and second order partials...')
 
     # Declare symbolic variables
-    d1 = se.symarray('d1', 3)
-    d2 = se.symarray('d2', 3)
-    d12 = se.symarray('d12', 3)
+    e1 = se.symarray('e1', 3)
+    e2 = se.symarray('e2', 3)
+    e12 = se.symarray('e12', 3)
     D1, D2, R, S1, S2, t2 = se.symbols('D1, D2, R, S1, S2, t2')
 
     # Second half of min-distance algorithm
     u1 = (t2 * R - S2) / D2
     u2 = approx_fixbound_se(u1, k=k1)
-    t3 = (1 - boxcar_func_se(u1, k=k2)) * approx_fixbound_se(((u2 * R + S1) / D1), k=k1) + boxcar_func_se(u1, k=k2) * t2
-    dist1 = d1 * t3 - d2 * u2 - d12
-    dist = se.sqrt((dist1 ** 2).sum())
+    conditional = boxcar_func_se(u1, k=k2)
+    t3 = (1 - conditional) * (u2 * R + S1) / D1 + conditional * t2
+    dist = se.sqrt(((e1 * t3 - e2 * u2 - e12)**2).sum())
     E = (1 / ce_k) * se.log(1 + se.exp(ce_k * (h2 - dist)))
 
-    # Create min-distance function with secondary input vals as input
-    inputs = wrt = se.Matrix([*d1, *d2, *d12, D1, D2, R, S1, S2, t2])
+    inputs = wrt = se.Matrix([*e1, *e2, *e12, D1, D2, R, S1, S2, t2])
 
     # Compute dE/dd1 | dE/dd2 | dE/dd12 are all (1x3)
     # dE/dD1 | dE/dD2 | dE/dR | dE/S1 | dE/S2 | dE/t2 are all scalars
-    gv = [E.diff(w) for w in wrt]
+    dv = [E.diff(w) for w in wrt]
 
-    # Create functions for each gradient listed above
-    grads = [create_function(g, inputs) for g in gv]
+    # Compute second order partials
+    # For example (for D1): d^2E/dD1^2, d^2E/dD1D2, d^2E/dD1S1, and so on...
+    sop = [se.Matrix([d]).jacobian(wrt) for d in dv]
 
-    # Create functions for each gradient of ...
-    hess = [create_function(se.Matrix([g]).jacobian(wrt), inputs) for g in gv]
+    # Create functions for each derivative listed above
+    derivatives = [create_function(d, inputs) for d in dv]
 
-    print('Completed second contact gradient and hessian: {:.3f} seconds'.format(time() - start))
+    # Create functions all second order partials
+    second_order_partials = [create_function(s, inputs) for s in sop]
 
-    return grads, hess
+    print('Completed second contact derivative and second order partials: {:.3f} seconds'.format(time() - start))
+
+    return derivatives, second_order_partials
 
 
 def ffr_jacobian():
@@ -161,6 +145,8 @@ def ffr_jacobian():
         Obtain Jacobian of friction force.
         Returns 3x24 Jacobian. dFfr/dy where y = [velocity; Fn]
     """
+    start = time()
+    print("Starting friction jacobian...")
     v1s = se.symarray('v1s', 3)
     v1e = se.symarray('v1e', 3)
     v2s = se.symarray('v2s', 3)
@@ -202,6 +188,8 @@ def ffr_jacobian():
     wrt = se.Matrix([*f1s, *f1e, *f2s, *f2e])
 
     ffr_grad = create_function(ffr.jacobian(wrt), inputs)
+
+    print('Completed friction jacobian: {:.3f} seconds'.format(time() - start))
 
     return ffr_grad
 
