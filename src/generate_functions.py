@@ -7,7 +7,7 @@ from time import time
 from imc_utils import *
 
 
-def initialize_functions(ce_k, h2):
+def generate_functions(ce_k, h2):
     """
         Must be run for first time ce_k and h2 values.
         After ran once, created functions are serialized.
@@ -198,7 +198,7 @@ def main():
     if len(sys.argv) != 3: raise ValueError("Expects two arguments, ce_k and h2")
     ce_k = float(sys.argv[1])
     h2   = float(sys.argv[2])
-    initialize_functions(ce_k, h2)
+    generate_functions(ce_k, h2)
 
 
 if __name__  == '__main__':

@@ -19,7 +19,7 @@ First, the necessary functions must be generated and stored. Use the following c
 create the functions for a certain contact energy stiffness (ce_k) and scaled contact distance (h2, two times the radius).
 ```bash
 cd src                                   # go to source code directory
-python3 initialize_functions.py ce_k h2  # a good value is ce_k = 50.0 and h2 = 2.0
+python3 generate_functions.py ce_k h2  # a good value is ce_k = 50.0 and h2 = 2.0
 ```
 This should only take a few seconds since changing the symbolic differentiation from sympy to symengine. After the functions are generated once, the simulator
 can be run with the following commands.
