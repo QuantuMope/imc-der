@@ -6,7 +6,7 @@ from numba import njit
 """
 
 
-@njit(cache=True, parallel=True)
+@njit(cache=True)
 def min_dist_vectorized(edges):
     assert edges.shape[1] == 12
     num_inputs = edges.shape[0]
@@ -41,7 +41,7 @@ def min_dist_vectorized(edges):
     return dist
 
 
-@njit(cache=True, parallel=True)
+@njit(cache=True)
 def min_dist_f_out_vectorized(edges, k=50.0):
     assert edges.shape[1] == 12
     num_inputs = edges.shape[0]
@@ -84,7 +84,7 @@ def min_dist_f_out_vectorized(edges, k=50.0):
 @njit(cache=True)
 def compute_ffr(velocities, forces, mu_k):
     v1s, v1e, v2s, v2e = velocities[:, :3], velocities[:, 3:6], velocities[:, 6:9], velocities[:, 9:]
-    f1s, f1e  = forces[:, :3], forces[:, 3:6]
+    f1s, f1e = forces[:, :3], forces[:, 3:6]
 
     num_inputs = velocities.shape[0]
 
@@ -119,6 +119,7 @@ def compute_ffr(velocities, forces, mu_k):
     return ffr
 
 
+# @njit(cache=True)
 @njit(cache=True)
 def construct_possible_edge_combos(edges, edge_combos, node_data, ia):
     num_edges = edges.shape[0]
@@ -137,7 +138,7 @@ def construct_possible_edge_combos(edges, edge_combos, node_data, ia):
         ri += add
 
 
-@njit(cache=True, parallel=True)
+@njit(cache=True)
 def detect_collisions(edge_combos, edge_ids, collision_limit, contact_len):
     # Compute the min-distances of all possible edge combinations
     assert edge_combos.shape[1] == 12
@@ -187,8 +188,9 @@ def prepare_edges(edge_ids, node_data):
     num_edges = edge_ids.shape[0]
     edge_combos = np.zeros((num_edges, 12), dtype=np.float64)
 
-    for i, ids in enumerate(edge_ids):
-        x, y = ids
+    # for i, ids in enumerate(edge_ids):
+    for i in range(num_edges):
+        x, y = edge_ids[i]
         edge_combos[i, :6] = node_data[3*x:(3*x)+6]
         edge_combos[i, 6:] = node_data[3*y:(3*y)+6]
     dists, f_out_vals = min_dist_f_out_vectorized(edge_combos)
@@ -200,10 +202,12 @@ def prepare_edges(edge_ids, node_data):
 
 @njit(cache=True)
 def prepare_velocities(edge_ids, velocity_data):
-    velocities = np.zeros((edge_ids.shape[0], 12), dtype=np.float64)
+    num_edges = edge_ids.shape[0]
+    velocities = np.zeros((num_edges, 12), dtype=np.float64)
 
-    for i, ids in enumerate(edge_ids):
-        x, y = ids
+    # for i, ids in enumerate(edge_ids):
+    for i in range(num_edges):
+        x, y = edge_ids[i]
         vel_x = velocity_data[3*x:(3*x)+6]
         vel_y = velocity_data[3*y:(3*y)+6]
         velocities[i, :6] = vel_x
@@ -238,11 +242,12 @@ def optimize_chain_rule(de_grads, f_grad_vals, s_derv_vals, s_sopa_vals, s_derv2
     # These are necessary to compute the chain rule for computing the overall hessian.
     s_sopa_vals = s_sopa_vals.reshape((15, num_inputs, 15, 1))
     for i in range(15):
-        curr_s = s_sopa_vals[i]
+        curr_sopa = s_sopa_vals[i]
+        curr_derv2 = s_derv2_vals[i, :]
         for j in range(9):
-            s_derv2_vals[i, :] += curr_s[:, j] * de_grads[j]
+            curr_derv2 += curr_sopa[:, j] * de_grads[j]
         for j in range(6):
-            s_derv2_vals[i, :] += curr_s[:, j+9] * f_grad_vals[j]
+            curr_derv2 += curr_sopa[:, j+9] * f_grad_vals[j]
 
 
 @njit(cache=True)
