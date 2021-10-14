@@ -30,4 +30,3 @@ ce_k 50
 S 625
 mu_k 0.10
 knotConfig n4
-port 50022

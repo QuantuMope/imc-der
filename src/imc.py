@@ -446,7 +446,7 @@ class IMC:
         # Initialize ZMQ socket.
         context = zmq.Context()
         socket = context.socket(zmq.REP)
-        socket.bind("tcp://*:{}".format(self.port_no))
+        socket.bind("tcp://127.0.0.1:{}".format(self.port_no))
         print("Connected to python server")
 
         edge_ids = None

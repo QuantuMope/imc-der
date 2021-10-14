@@ -151,18 +151,37 @@ int main(int argc,char *argv[])
     inputData.LoadOptions(argv[1]);
     inputData.LoadOptions(argc,argv);
 
+    // Find an available port to give to Python server.
+    // This is messy but fine for now.
+    int p = 50001;
+    string port = to_string(p);
+    string server_addr = "tcp://127.0.0.1:";
+    zmq::context_t temp_context;
+    zmq::socket_t temp_socket(temp_context, ZMQ_REP);
+    while (true) {
+        try {
+            cout << "Attemping to connect to port # " << port << endl;
+            temp_socket.bind(server_addr + port);
+            break;
+        } catch (const zmq::error_t& e) {
+            p++;
+            port = to_string(p);
+        };
+    }
+    cout << "Successfully connected to port # " << port << endl;
+    temp_socket.unbind(server_addr + port);
+
     // Setup shared memory
     int num_nodes = inputData.GetIntOpt("numVertices");
     int nv = num_nodes * 3;
     int hess_size = nv * nv;
     int meta_data_size = 7;
-    string port_no = to_string(inputData.GetIntOpt("port"));
 
-    int nc_fd = shm_open(("node_coordinates" + port_no).c_str(), O_CREAT | O_RDWR, 0666);
-    int ve_fd = shm_open(("velocities" + port_no).c_str(), O_CREAT | O_RDWR, 0666);
-    int me_fd = shm_open(("meta_data" + port_no).c_str(), O_CREAT | O_RDWR, 0666);
-    int cf_fd = shm_open(("contact_forces" + port_no).c_str(), O_CREAT | O_RDWR, 0666);
-    int ch_fd = shm_open(("contact_hessian" + port_no).c_str(), O_CREAT | O_RDWR, 0666);
+    int nc_fd = shm_open(("node_coordinates" + port).c_str(), O_CREAT | O_RDWR, 0666);
+    int ve_fd = shm_open(("velocities" + port).c_str(), O_CREAT | O_RDWR, 0666);
+    int me_fd = shm_open(("meta_data" + port).c_str(), O_CREAT | O_RDWR, 0666);
+    int cf_fd = shm_open(("contact_forces" + port).c_str(), O_CREAT | O_RDWR, 0666);
+    int ch_fd = shm_open(("contact_hessian" + port).c_str(), O_CREAT | O_RDWR, 0666);
 
     if (nc_fd == -1 || ve_fd == -1 || me_fd == -1 || cf_fd == -1 || ch_fd == -1)
     {
@@ -206,14 +225,13 @@ int main(int argc,char *argv[])
         myWorld.OpenFile(node_data, "node_data");
     }
 
-    const char* port = to_string(inputData.GetIntOpt("port")).c_str();
-    const char* col = to_string(inputData.GetScalarOpt("col")).c_str();
-    const char* con = to_string(inputData.GetScalarOpt("con")).c_str();
-    const char* ce_k = to_string(inputData.GetScalarOpt("ce_k")).c_str();
-    const char* mu_k = to_string(inputData.GetScalarOpt("mu_k")).c_str();
-    const char* S = to_string(inputData.GetScalarOpt("S")).c_str();
-    const char* radius = to_string(inputData.GetScalarOpt("rodRadius")).c_str();
-    const char* nv_py = to_string(inputData.GetIntOpt("numVertices")).c_str();
+    string col = to_string(inputData.GetScalarOpt("col"));
+    string con = to_string(inputData.GetScalarOpt("con"));
+    string ce_k = to_string(inputData.GetScalarOpt("ce_k"));
+    string mu_k = to_string(inputData.GetScalarOpt("mu_k"));
+    string S = to_string(inputData.GetScalarOpt("S")).c_str();
+    string radius = to_string(inputData.GetScalarOpt("rodRadius"));
+    string nv_py = to_string(inputData.GetIntOpt("numVertices"));
 
     cout << "Input parameters to python" << endl;
     cout << "port " << port << " col " << col << " con " << con << " ce_k " << ce_k << endl;
@@ -225,8 +243,16 @@ int main(int argc,char *argv[])
         exit(1);
     }
     else if (pid == 0) {
-        int server_result = execlp("python3", "python3", "../imc.py", port, col, con, ce_k,
-                                   mu_k, radius, nv_py, S, (char*)NULL);
+        int server_result = execlp("python3", "python3", "../imc.py",
+                                   port.c_str(),
+                                   col.c_str(),
+                                   con.c_str(),
+                                   ce_k.c_str(),
+                                   mu_k.c_str(),
+                                   radius.c_str(),
+                                   nv_py.c_str(),
+                                   S.c_str(),
+                                   (char*)NULL);
         if (server_result < 0) {
             cout << "Failed to initialize python server." << endl;
             exit(1);
@@ -237,7 +263,6 @@ int main(int argc,char *argv[])
     signal(SIGSEGV, kill_server);
 
     // Connect to Python ZMQ
-    string server_addr = "tcp://localhost:";
     cout << "Connecting to Python server..." << endl;
     socket.connect(server_addr + port);
 
