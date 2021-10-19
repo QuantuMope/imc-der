@@ -303,19 +303,6 @@ void world::newtonDamper()
         alpha = 1.0;
     else
         alpha *= 0.9;
-
-//    if (iter < 2)
-//        alpha = 1.0;
-//    else if (iter < 4)
-//        alpha = 0.5;
-//    else if (iter < 6)
-//        alpha = 0.25;
-//    else if (iter < 8)
-//        alpha = 0.10;
-//    else if (iter < 10)
-//        alpha = 0.05;
-//    else if (iter > 50)
-//        alpha = 0.01;
 }
 
 
@@ -392,7 +379,7 @@ void world::newtonMethod(bool &solved)
         IMC->computeFc();
         if (hessian) IMC->computeJc();
 
-        newtonDamper();
+//        newtonDamper();
 
         // Compute norm of the force equations.
         normf = 0;

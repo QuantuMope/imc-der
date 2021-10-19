@@ -168,8 +168,8 @@ class IMC:
 
         ffr_jacobian = np.zeros((ffr_grad_s.shape[0], 12, 12), dtype=np.float64)
 
-        ffr_1 = 0.5 * (ffr_grad_s[:, :3, :12] @ d2edx2)
-        ffr_2 = 0.5 * (ffr_grad_s[:, 3:, :12] @ d2edx2)
+        ffr_1 = 0.5 * (ffr_grad_s[:, :3] @ d2edx2)
+        ffr_2 = 0.5 * (ffr_grad_s[:, 3:] @ d2edx2)
         ffr_jacobian[:, :3]  = ffr_1
         ffr_jacobian[:, 3:6] = ffr_1
         ffr_jacobian[:, 6:9] = ffr_2
@@ -261,7 +261,7 @@ class IMC:
 
         # Apply contact stiffness to gradient and hessian
         self.forces[:]  *= self.contact_stiffness
-        self.hessian[:] *= self.contact_stiffness
+        self.hessian[:] *= (self.contact_stiffness * self.scale)  # Hessian must be multiplied by scale factor
 
     def _update_contact_stiffness(self, curr_cd, last_cd):
         diff = curr_cd - last_cd

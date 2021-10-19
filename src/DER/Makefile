@@ -7,7 +7,7 @@ STD = -std=c++11
 default: clean simDER
 
 simDER: main.cpp world.cpp elasticRod.cpp elasticStretchingForce.cpp elasticBendingForce.cpp elasticTwistingForce.cpp externalGravityForce.cpp dampingForce.cpp inertialForce.cpp timeStepper.cpp setInput.cpp collision.cpp
-	g++ -O2 -Wno-deprecated-declarations $(STD) -fopenmp -I $(LIB_PATH) main.cpp world.cpp elasticRod.cpp elasticStretchingForce.cpp elasticBendingForce.cpp elasticTwistingForce.cpp externalGravityForce.cpp inertialForce.cpp dampingForce.cpp timeStepper.cpp setInput.cpp collision.cpp $(LIBRARIES) -o simDER
+	g++ -O3 -Wno-deprecated-declarations $(STD) -fopenmp -I $(LIB_PATH) main.cpp world.cpp elasticRod.cpp elasticStretchingForce.cpp elasticBendingForce.cpp elasticTwistingForce.cpp externalGravityForce.cpp inertialForce.cpp dampingForce.cpp timeStepper.cpp setInput.cpp collision.cpp $(LIBRARIES) -o simDER
 
 clean:
 	rm -rf simDER

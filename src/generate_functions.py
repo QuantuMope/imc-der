@@ -77,7 +77,7 @@ def first_grads_and_hessian(k1=50.0):
     S2 = (e2 * e12).sum()
     R = (e1 * e2).sum()
     den = D1 * D2 - R ** 2
-    t1 = se.Piecewise((((S1 * D2 - S2 * R) / den), se.Ne(den, 0.0)), (0.0, True))  # avoid division by zero
+    t1 = se.Piecewise(((S1 * D2 - S2 * R) / den, den > 1e-6), (0.0, True))  # avoid division by zero
     t2 = approx_fixbound_se(t1, k=k1)
 
     wrt = se.Matrix([*x1s, *x1e, *x2s, *x2e])
