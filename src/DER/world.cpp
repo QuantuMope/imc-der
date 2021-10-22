@@ -299,10 +299,10 @@ bool world::pulling()
 
 void world::newtonDamper()
 {
-    if (iter < 2)
+    if (iter < 10)
         alpha = 1.0;
     else
-        alpha *= 0.9;
+        alpha *= 0.95;
 }
 
 
@@ -379,7 +379,7 @@ void world::newtonMethod(bool &solved)
         IMC->computeFc();
         if (hessian) IMC->computeJc();
 
-//        newtonDamper();
+        newtonDamper();
 
         // Compute norm of the force equations.
         normf = 0;

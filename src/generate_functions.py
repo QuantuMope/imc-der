@@ -162,7 +162,8 @@ def second_derivatives_and_second_order_partials(ce_k, h2, k1=50.0, k2=50.0):
 def ffr_jacobian():
     """
         Obtain Jacobian of friction force.
-        Returns 3x24 Jacobian. dFfr/dy where y = [velocity; Fn]
+        Treat friction direction explicitly by using previous time step's velocity.
+        The contact force magnitude is treated implicitly using our contact energy hessian.
     """
     start = time()
     print("Starting friction jacobian...")
@@ -176,14 +177,28 @@ def ffr_jacobian():
     f2e = se.symarray('f2e', 3)
     mu_k = se.symbols('mu_k')
 
+    # We can take advantage of the fact that force vectors are always parallel
+    # and that their magnitudes vary accordingly with t and u.
+    # This allows us to avoid computing dt/dx and du/dx and instead depend entirely
+    # on dFc/dx for the friction force jacobian computation.
+    f1s_n = se.sqrt((f1s**2).sum())
+    f1e_n = se.sqrt((f1e**2).sum())
+    f2s_n = se.sqrt((f2s**2).sum())
+    f2e_n = se.sqrt((f2e**2).sum())
     fn1 = se.sqrt(((f1s + f1e)**2).sum())
     fn2 = se.sqrt(((f2s + f2e)**2).sum())
+
+    # Compute contact point ratios
+    t1 = f1s_n / fn1
+    t2 = f1e_n / fn1
+    u1 = f2s_n / fn2
+    u2 = f2e_n / fn2
 
     fn1_u = (f1s + f1e) / fn1
     fn2_u = (f2s + f2e) / fn2
 
-    v1 = 0.5 * (v1s + v1e)
-    v2 = 0.5 * (v2s + v2e)
+    v1 = t1 * v1s + t2 * v1e
+    v2 = u1 * v2s + u2 * v2e
     v_rel1 = v1 - v2
     tv_rel1 = v_rel1 - (v_rel1.dot(fn1_u) * fn1_u)
     tv_rel1_n = se.sqrt((tv_rel1 ** 2).sum())
@@ -200,9 +215,14 @@ def ffr_jacobian():
     ffr_e1 = heaviside1 * mu_k * tv_rel1_u * fn1
     ffr_e2 = heaviside2 * mu_k * tv_rel2_u * fn2
 
+    ffr1s = t1 * ffr_e1
+    ffr1e = t2 * ffr_e1
+    ffr2s = u1 * ffr_e2
+    ffr2e = u2 * ffr_e2
+
     inputs = se.Matrix([*v1s, *v1e, *v2s, *v2e, *f1s, *f1e, *f2s, *f2e, mu_k])
 
-    ffr = se.Matrix([*ffr_e1, *ffr_e2])
+    ffr = se.Matrix([*ffr1s, *ffr1e, *ffr2s, *ffr2e])
 
     wrt = se.Matrix([*f1s, *f1e, *f2s, *f2e])
 

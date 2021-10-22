@@ -68,7 +68,7 @@ void collision::computeJc()
         {
             if ((j+1) % 4 == 0) continue;
             if (contact_hessian[jacob_index] != 0)
-                stepper->addJacobian(i, j, contact_hessian[jacob_index]);
+                stepper->addJacobian(j, i, contact_hessian[jacob_index]);
             jacob_index++;
         }
     }
