@@ -78,13 +78,17 @@ void world::OpenFile(ofstream &outfile, string filename)
 
 void world::outputNodeCoordinates(ofstream &outfile)
 {
-    // Output time rod_number and nodes (5 outputs)
     Vector3d curr_node;
-    for (int i = 0; i < rod->nv; i++) {
+    double curr_theta;
+    for (int i = 0; i < rod->nv-1; i++) {
         curr_node = rod->getVertex(i);
-        outfile << currentTime << " " << 0 << " " << curr_node(0)
-                << " " << curr_node(1) << " " << curr_node(2) << endl;
+        curr_theta = rod->getTheta(i);
+        outfile << curr_node(0) << " " << curr_node(1) << " " <<
+                   curr_node(2) << " " << curr_theta << endl;
     }
+    curr_node = rod->getVertex(rod->nv-1);
+    outfile << curr_node(0) << " " << curr_node(1) << " " <<
+               curr_node(2) << " " << 0.0 << endl;
 }
 
 void world::CloseFile(ofstream &outfile)
@@ -441,7 +445,7 @@ int world::numPoints()
 
 double world::getScaledCoordinate(int i)
 {
-    return rod->x[i] / (0.5 * RodLength);
+    return rod->x[i] / (0.325 * RodLength);
 }
 
 double world::getCurrentTime()

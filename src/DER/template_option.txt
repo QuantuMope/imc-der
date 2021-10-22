@@ -27,6 +27,6 @@ col                0.15
 con                0.0001
 ce_k               50
 S                  625
-knotConfig         n1_relaxed
+knotConfig         n1
 contactMode        1
 limit              20
