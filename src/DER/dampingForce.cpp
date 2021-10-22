@@ -6,11 +6,6 @@ dampingForce::dampingForce(elasticRod &m_rod, timeStepper &m_stepper, double m_v
     rod = &m_rod;
     stepper = &m_stepper;
     viscosity = m_viscosity;
-
-    Id3 << 1, 0, 0,
-           0, 1, 0,
-           0, 0, 1;
-
 }
 
 dampingForce::~dampingForce()
@@ -26,56 +21,21 @@ void dampingForce::computeFd()
         for (int k = 0; k < 3; k++)
         {
             ind = 4 * i + k;
-            stepper->addForce(ind, - force[k]); // subtracting external force
+            stepper->addForce(ind, -force[k]); // subtracting external force
         }
     }
 }
 
 void dampingForce::computeJd()
 {
+    // Here, we take advantage of the fact that the damping force Jacobian is a diagonal matrix of identical values.
     for (int i = 0; i < rod->ne; i++)
     {
-        jac = -viscosity * rod->voronoiLen(i) / rod->dt * Id3;
-
-        for (int kx = 0; kx < 3; kx++)
+        jac = -viscosity * rod->voronoiLen(i) / rod->dt;
+        for (int k = 0; k < 3; k++)
         {
-            indx = 4 * i + kx;
-            for (int ky = 0; ky < 3; ky++)
-            {
-                indy = 4 * i + ky;
-                stepper->addJacobian(indx, indy, - jac(kx,ky)); // subtracting external force
-            }
+            ind = 4 * i + k;
+            stepper->addJacobian(ind, ind, -jac);
         }
     }
 }
-//
-//void dampingForce::computeFd()
-//{
-//    for (int i = 0; i < rod->ne; i++)
-//    {
-//        force = -viscosity * rod->getVelocity(i) * rod->voronoiLen(i);
-//        for (int k = 0; k < 3; k++)
-//        {
-//            ind = 4 * i + k;
-//            stepper->addForce(ind, - force[k]); // subtracting external force
-//        }
-//    }
-//}
-//
-//void dampingForce::computeJd()
-//{
-//    for (int i = 0; i < rod->ne; i++)
-//    {
-//        jac = -viscosity * rod->voronoiLen(i) / rod->dt * Id3;
-//
-//        for (int kx = 0; kx < 3; kx++)
-//        {
-//            indx = 4 * i + kx;
-//            for (int ky = 0; ky < 3; ky++)
-//            {
-//                indy = 4 * i + ky;
-//                stepper->addJacobian(indx, indy, - jac(kx,ky)); // subtracting external force
-//            }
-//        }
-//    }
-//}

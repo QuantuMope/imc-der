@@ -20,7 +20,7 @@ private:
 
     Vector3d force;
     int ind, indx, indy;
-    Matrix3d Id3, jac;
+    double jac;
 };
 
 #endif
