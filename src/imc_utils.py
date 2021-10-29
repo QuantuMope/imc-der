@@ -82,7 +82,7 @@ def min_dist_f_out_vectorized(edges, k=50.0):
 
 
 @njit(cache=True)
-def compute_ffr(velocities, forces, mu_k):
+def compute_friction(velocities, forces, mu_k):
     v1s, v1e = velocities[:, :3], velocities[:, 3:6]
     v2s, v2e = velocities[:, 6:9], velocities[:, 9:]
     f1s, f1e = forces[:, :3], forces[:, 3:6]
@@ -212,11 +212,11 @@ def prepare_edges(edge_ids, node_data):
     for i, (e1, e2) in enumerate(edge_ids):
         edge_combos[i, :6] = node_data[3*e1:(3*e1)+6]
         edge_combos[i, 6:] = node_data[3*e2:(3*e2)+6]
-    dists, f_out_vals = min_dist_f_out_vectorized(edge_combos)
+    dists = min_dist_vectorized(edge_combos)
 
     closest_distance = np.min(dists)
 
-    return edge_combos, closest_distance, f_out_vals
+    return edge_combos, closest_distance
 
 
 @njit(cache=True)
@@ -307,7 +307,7 @@ def chain_rule_friction_jacobian(dfr_dfc, dfc_dx):
 
 
 @njit(cache=True)
-def get_ffr_jacobian_inputs(velocities, contact_force, mu_k):
+def get_friction_jacobian_inputs(velocities, contact_force, mu_k):
     ffr_jac_input = np.zeros((velocities.shape[0], 25), dtype=np.float64)
 
     ffr_jac_input[:, :12] = velocities

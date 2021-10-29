@@ -1,7 +1,6 @@
 import os
 import sys
 import dill as pickle
-import numpy as np
 import symengine as se
 from time import time
 
@@ -10,64 +9,58 @@ def create_function(ele, wrt):
     return se.Lambdify(wrt, ele, cse=True, backend="llvm")
 
 
-def approx_fixbound_se(x, k):
+def approx_fixbound(x, k):
     """ H(x) """
     return (1 / k) * (se.log(1 + se.exp(k * x)) - se.log(1 + se.exp(k * (x - 1.0))))
 
 
-def log_func_se(x, k, c=0.5):
+def log_func(x, k, c):
     return 1 / (1 + se.exp(-k*(x-c)))
 
 
-def boxcar_func_se(x, k):
+def approx_boxcar(x, k):
     """ B(x) """
-    step1 = log_func_se(x, k, 0.00)
-    step2 = log_func_se(x, k, 1.00)
+    step1 = log_func(x, k, 0.00)
+    step2 = log_func(x, k, 1.00)
     return step1 - step2
 
 
 def generate_functions(ce_k, h2):
-    """
-        Must be run for first time ce_k and h2 values.
-        After ran once, created functions are serialized.
-    """
     dir = './DER/grads_hessian_functions/'
 
     if not os.path.exists(dir): os.makedirs(dir)
 
-    de, f_g, f_ch, f_h = first_grads_and_hessian()
-    s_d, s_op = second_derivatives_and_second_order_partials(ce_k, h2)
-    ffr = ffr_jacobian()
+    ce_grad_func, ce_hess_func = generate_contact_energy_functions(ce_k, h2)
+    fr_jaco_func = generate_friction_jacobian_function()
 
-    cekr = '_cek_' + str(ce_k) + '_h2_' + str(h2)
+    ce_params = '_cek_' + str(ce_k) + '_h2_' + str(h2)
 
-    functions = [(de, 'de'), (f_g, 'first_grad'), (f_ch, 'constant_hess'), (f_h, 'first_hess'),
-                 (ffr, 'friction_jacobian'), (s_d, 'second_derivative' + cekr),
-                 (s_op, 'second_order_partials' + cekr)]
-
+    functions = [(ce_grad_func, 'ce_grad' + ce_params),
+                 (ce_hess_func, 'ce_hess' + ce_params),
+                 (fr_jaco_func, 'fr_jaco')]
+    #
     pickle.settings['recurse'] = True
     for func, name in functions:
         with open(dir + name, 'wb') as f:
             pickle.dump(func, f)
 
 
-def first_grads_and_hessian(k1=50.0):
+def generate_contact_energy_functions(ce_k, h2, k1=50.0, k2=50.0):
     """
-        x is a (1x12) vector
-        Gradients: de1/dx | de2/dx | de12/dx are (3x12), there hessians are all zero
-                   dD1/dx | dD2/dx | dR/dx   | dS1/dx | dS2/dx | dt2/dx are (1x12)
-        Hessian :  0 for e1, e2, and e12. Others are (12x12)
+        Obtain gradient and Hessian of contact energy.
+        The gradient can be thought of as our contact forces.
+        The Hessian can be thought of as our contact force Jacobian.
     """
     start = time()
-    print('Starting first gradients and hessians...')
+    print('Starting contact energy gradient and Hessian...')
 
-    # Declare symbolic variables
+    # Declare symbolic variables.
     x1s = se.symarray('x1s', 3)
     x1e = se.symarray('x1e', 3)
     x2s = se.symarray('x2s', 3)
     x2e = se.symarray('x2e', 3)
 
-    # First half of the min-distance algorithm
+    # Smoothly approximated contact energy formulation.
     e1 = x1e - x1s
     e2 = x2e - x2s
     e12 = x2s - x1s
@@ -78,95 +71,37 @@ def first_grads_and_hessian(k1=50.0):
     R = (e1 * e2).sum()
     den = D1 * D2 - R ** 2
     t1 = se.Piecewise(((S1 * D2 - S2 * R) / den, den > 1e-6), (0.0, True))  # avoid division by zero
-    t2 = approx_fixbound_se(t1, k=k1)
-
-    wrt = se.Matrix([*x1s, *x1e, *x2s, *x2e])
-
-    # No need to create a function for de1/dx | de2/dx | de12/dx because they are constant.
-    # These are constant gradients
-    de = np.zeros((9, 12), dtype=np.float64)
-    de[:3]  = np.array(se.Matrix(e1).jacobian(wrt)).astype(np.float64)
-    de[3:6] = np.array(se.Matrix(e2).jacobian(wrt)).astype(np.float64)
-    de[6:]  = np.array(se.Matrix(e12).jacobian(wrt)).astype(np.float64)
-
-    # Exclude e1 e2 and e12 since their hessians are all zero
-    ele = se.Matrix([D1, D2, R, S1, S2, t2])
-
-    # Compute dD1/dx | dD2/dx | dR/dx | dS1/dx | dS2/dx | dt2/dx
-    gv = [se.Matrix([e]).jacobian(wrt) for e in ele]
-
-    # Compute d^D1/dx^2 | d^2D2/dx^2 | d^2R/dx^2 | d^2S1/dx^2 | d^S2/dx^2 | d^2t2/dx^2
-    hv = [g.T.jacobian(wrt) for g in gv]
-
-    # Create functions for the gradients
-    grads = [create_function(g, wrt) for g in gv]
-
-    # These are constant hessian matrices
-    constant_hess = np.array([h for h in hv[:-1]]).reshape((5, 12, 12)).astype(np.float64)
-
-    # Create hessian function for d^2t2/dx^2
-    hess = create_function(hv[-1], wrt)  # only t2 Hessian is non-constant
-
-    print('Completed first contact gradient and hessian: {:.3f} seconds'.format(time() - start))
-
-    return de, grads, constant_hess, hess
-
-
-def second_derivatives_and_second_order_partials(ce_k, h2, k1=50.0, k2=50.0):
-    """
-        Required inputs: e1, e2, e12, D1, D2, R, S1, S2, t2
-
-        Derivatives: dE/de1 | dE/de2 | dE/de12 are all (1x3)
-                     dE/dD1 | dE/dD2 | dE/dR   | dE/S1 | dE/S2 | dE/t2 are all scalars
-        Second order partials: To compute d/dx(dE/dD1) via chain rule,
-                               we need d^2E/dD1v where v is each of the required inputs
-    """
-    start = time()
-    print('Starting second derivatives and second order partials...')
-
-    # Declare symbolic variables
-    e1 = se.symarray('e1', 3)
-    e2 = se.symarray('e2', 3)
-    e12 = se.symarray('e12', 3)
-    D1, D2, R, S1, S2, t2 = se.symbols('D1, D2, R, S1, S2, t2')
-
-    # Second half of min-distance algorithm
+    t2 = approx_fixbound(t1, k=k1)
     u1 = (t2 * R - S2) / D2
-    u2 = approx_fixbound_se(u1, k=k1)
-    conditional = boxcar_func_se(u1, k=k2)
+    u2 = approx_fixbound(u1, k=k1)
+    conditional = approx_boxcar(u1, k=k2)
     t3 = (1 - conditional) * (u2 * R + S1) / D1 + conditional * t2
     dist = se.sqrt(((e1 * t3 - e2 * u2 - e12)**2).sum())
     E = (1 / ce_k) * se.log(1 + se.exp(ce_k * (h2 - dist)))
 
-    inputs = wrt = se.Matrix([*e1, *e2, *e12, D1, D2, R, S1, S2, t2])
+    inputs = wrt = se.Matrix([*x1s, *x1e, *x2s, *x2e])
 
-    # Compute dE/dd1 | dE/dd2 | dE/dd12 are all (1x3)
-    # dE/dD1 | dE/dD2 | dE/dR | dE/S1 | dE/S2 | dE/t2 are all scalars
-    dv = [E.diff(w) for w in wrt]
+    # Generate contact energy gradient and Hessian symbolic solutions.
+    ce_grad = se.Matrix([E]).jacobian(wrt)
+    ce_hess = ce_grad.T.jacobian(wrt)
 
-    # Compute second order partials
-    # For example (for D1): d^2E/dD1^2, d^2E/dD1D2, d^2E/dD1S1, and so on...
-    sop = [se.Matrix([d]).jacobian(wrt) for d in dv]
+    # Generate callable functions using symengine and LLVM backend.
+    ce_grad_func = create_function(ce_grad, inputs)
+    ce_hess_func = create_function(ce_hess, inputs)
 
-    # Create functions for each derivative listed above
-    derivatives = [create_function(d, inputs) for d in dv]
+    print('Completed first contact gradient and Hessian in {:.3f} seconds.'.format(time() - start))
 
-    # Create functions all second order partials
-    second_order_partials = [create_function(s, inputs) for s in sop]
-
-    print('Completed second contact derivative and second order partials: {:.3f} seconds'.format(time() - start))
-
-    return derivatives, second_order_partials
+    return ce_grad_func, ce_hess_func
 
 
-def ffr_jacobian():
+def generate_friction_jacobian_function():
     """
         Obtain Jacobian of friction force.
         Treat friction direction explicitly by using previous time step's velocity.
-        The contact force magnitude is treated implicitly using our contact energy hessian.
+        The contact force magnitude is treated implicitly using our contact energy Hessian.
     """
     start = time()
-    print("Starting friction jacobian...")
+    print("Starting friction Jacobian...")
     v1s = se.symarray('v1s', 3)
     v1e = se.symarray('v1e', 3)
     v2s = se.symarray('v2s', 3)
@@ -180,7 +115,7 @@ def ffr_jacobian():
     # We can take advantage of the fact that force vectors are always parallel
     # and that their magnitudes vary accordingly with t and u.
     # This allows us to avoid computing dt/dx and du/dx and instead depend entirely
-    # on dFc/dx for the friction force jacobian computation.
+    # on dFc/dx (d2E/dx2) for the friction force jacobian computation.
     f1s_n = se.sqrt((f1s**2).sum())
     f1e_n = se.sqrt((f1e**2).sum())
     f2s_n = se.sqrt((f2s**2).sum())
@@ -222,21 +157,23 @@ def ffr_jacobian():
 
     inputs = se.Matrix([*v1s, *v1e, *v2s, *v2e, *f1s, *f1e, *f2s, *f2e, mu_k])
 
-    ffr = se.Matrix([*ffr1s, *ffr1e, *ffr2s, *ffr2e])
-
     wrt = se.Matrix([*f1s, *f1e, *f2s, *f2e])
 
-    ffr_grad = create_function(ffr.jacobian(wrt), inputs)
+    ffr = se.Matrix([*ffr1s, *ffr1e, *ffr2s, *ffr2e])
 
-    print('Completed friction jacobian: {:.3f} seconds'.format(time() - start))
+    fr_jaco = ffr.jacobian(wrt)
 
-    return ffr_grad
+    fr_jaco_func = create_function(fr_jaco, inputs)
+
+    print('Completed friction Jacobian in {:.3f} seconds.'.format(time() - start))
+
+    return fr_jaco_func
 
 
 def main():
     if len(sys.argv) != 3: raise ValueError("Expects two arguments, ce_k and h2")
     ce_k = float(sys.argv[1])
-    h2   = float(sys.argv[2])
+    h2 = float(sys.argv[2])
     generate_functions(ce_k, h2)
 
 

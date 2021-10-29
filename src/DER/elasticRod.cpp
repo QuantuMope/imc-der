@@ -437,7 +437,6 @@ void elasticRod::computeElasticStiffness()
     EI = (youngM*M_PI*rodRadius*rodRadius*rodRadius*rodRadius)/4;
     EA =  youngM*M_PI*rodRadius*rodRadius;
     GJ = (shearM*M_PI*rodRadius*rodRadius*rodRadius*rodRadius)/2;
-    cout << "EI " << EI << endl;
 }
 
 void elasticRod::prepareForIteration()

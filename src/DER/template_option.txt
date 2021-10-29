@@ -12,7 +12,7 @@ maxIter            500
 gVector            0.0 0.0 0.0
 viscosity          0.01
 render             1
-saveData           1
+saveData           0
 recordNodes        0
 recordNodesStart   10.0
 recordNodesEnd     10.10

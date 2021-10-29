@@ -21,9 +21,10 @@ class IMC:
 
         self.contact_len = self.radius * 2
         ce_k = params['ce_k']
-        cekr = '_cek_' + str(ce_k) + '_h2_' + str(self.contact_len)
-        func_names = ['de', 'first_grad', 'constant_hess', 'first_hess', 'second_derivative' + cekr,
-                      'second_order_partials' + cekr, 'friction_jacobian']
+        ce_params = '_cek_' + str(ce_k) + '_h2_' + str(self.contact_len)
+        func_names = ['ce_grad' + ce_params,
+                      'ce_hess' + ce_params,
+                      'fr_jaco']
 
         # Load pre-generated functions
         dir = './grads_hessian_functions/'
@@ -32,13 +33,9 @@ class IMC:
             with open(dir + name, 'rb') as f:
                 functions.append(pickle.load(f))
 
-        self.de_grads          = functions[0]
-        self.f_grad_funcs      = functions[1]
-        self.f_hess_const      = functions[2].reshape((5, 1, 12, 12))
-        self.f_hess_func       = functions[3]  # for t2
-        self.s_derv_funcs      = functions[4]
-        self.s_sopa_funcs      = functions[5]
-        self.ffr_jacobian_func = functions[6]
+        self.ce_grad_func = functions[0]
+        self.ce_hess_func = functions[1]
+        self.fr_jaco_func = functions[2]
 
         self.friction = 0  # is updated by C++ side
 
@@ -108,22 +105,15 @@ class IMC:
     def _prepare_velocities(self, edge_ids):
         return iu.prepare_velocities(edge_ids, self.velocities)
 
-    def _chain_rule_contact_nohess(self, f_grad_vals, s_derv_vals):
-        return iu.chain_rule_contact_nohess(self.de_grads, f_grad_vals, s_derv_vals)
+    def _compute_friction(self, velocities, contact_forces):
+        return iu.compute_friction(velocities, contact_forces, self.mu_k)
 
-    def _chain_rule_contact_hess(self, f_grad_vals, s_derv_vals, f_hess_vals, s_sopa_vals):
-        return iu.chain_rule_contact_hess(self.de_grads, f_grad_vals, s_derv_vals,
-                                          f_hess_vals, self.f_hess_const, s_sopa_vals)
-
-    def _compute_ffr(self, velocities, dedx):
-        return iu.compute_ffr(velocities, dedx, self.mu_k)
-
-    def _get_ffr_jacobian_inputs(self, velocities, dedx):
-        return iu.get_ffr_jacobian_inputs(velocities, dedx, self.mu_k)
+    def _get_friction_jacobian_inputs(self, velocities, contact_forces):
+        return iu.get_friction_jacobian_inputs(velocities, contact_forces, self.mu_k)
 
     @staticmethod
-    def _chain_rule_friction_jacobian(ffr_grad_s, d2edx2):
-        return iu.chain_rule_friction_jacobian(ffr_grad_s, d2edx2)
+    def _chain_rule_friction_jacobian(dfr_dfc, dfc_dx):
+        return iu.chain_rule_friction_jacobian(dfr_dfc, dfc_dx)
 
     def _py_to_cpp_nohess(self, py_forces, edge_ids):
         iu.py_to_cpp_nohess(py_forces, self.forces, edge_ids)
@@ -131,85 +121,64 @@ class IMC:
     def _py_to_cpp_hess(self, py_forces, py_jacobian, edge_ids):
         iu.py_to_cpp_hess(py_forces, py_jacobian, self.forces, self.hessian, edge_ids)
 
-    def _get_forces(self, edges, edge_ids, velocities, s_input_vals):
+    def _get_forces(self, edges, edge_ids, velocities):
         num_inputs = edges.shape[0]
 
-        # Obtain first contact energy gradients
-        f_grad_vals = np.array([f_grad(*edges) for f_grad in self.f_grad_funcs], dtype=np.float64).squeeze()
-
-        # Get second contact energy gradients
-        s_derv_vals = np.array([s_derv(*s_input_vals) for s_derv in self.s_derv_funcs], dtype=np.float64).T
-
-        # Reshape data structures for proper indexing in case of only one collision
-        if num_inputs == 1:
-            s_derv_vals = s_derv_vals.reshape((1, 15))
-            f_grad_vals = f_grad_vals.reshape((6, 1, 12))
-
-        # Perform chain ruling to get contact gradient and hessian
-        de_dx = self._chain_rule_contact_nohess(f_grad_vals, s_derv_vals)
-
-        # Calculate friction forces on all four nodes
-        ffr = self._compute_ffr(velocities, de_dx)
+        # Compute contact energy gradient (contact forces)
+        de_dx = np.array(self.ce_grad_func(*edges), dtype=np.float64).reshape((num_inputs, 12))
 
         if self.friction:
+            # Compute friction forces
+            ffr = self._compute_friction(velocities, de_dx)
             total_forces = de_dx + ffr
         else:
             total_forces = de_dx
 
-        # Write gradient and hessian to shared memory location for DER
+        # Write gradient to shared memory location for DER
         self._py_to_cpp_nohess(total_forces, edge_ids)
 
-        # Apply contact stiffness to gradient and hessian
+        # Apply contact stiffness to gradient
         self.forces *= self.contact_stiffness
 
-    def _get_forces_and_hessian(self, edges, edge_ids, velocities, s_input_vals):
+    def _get_forces_and_hessian(self, edges, edge_ids, velocities):
         num_inputs = edges.shape[0]
 
-        # Obtain first contact energy gradients
-        f_grad_vals = np.array([f_grad(*edges) for f_grad in self.f_grad_funcs], dtype=np.float64).squeeze()
+        # Compute contact energy gradient (contact forces)
+        de_dx = np.array(self.ce_grad_func(*edges), dtype=np.float64).reshape((num_inputs, 12))
 
-        # Obtain first contact energy hessians
-        f_hess_vals = np.array(self.f_hess_func(*edges), dtype=np.float64)
-
-        # Get second contact energy gradients
-        s_derv_vals = np.array([s_derv(*s_input_vals) for s_derv in self.s_derv_funcs], dtype=np.float64).T
-
-        # Get second contact energy hessians
-        s_sopa_vals = np.array([s_sopa(*s_input_vals) for s_sopa in self.s_sopa_funcs], dtype=np.float64).squeeze()
-
-        # Reshape data structures for proper indexing in case of only one collision
-        if num_inputs == 1:
-            s_derv_vals = s_derv_vals.reshape((1, 15))
-            s_sopa_vals = s_sopa_vals.reshape((15, 1, 15))
-            f_grad_vals = f_grad_vals.reshape((6, 1, 12))
-
-        # Perform chain ruling to get contact gradient and hessian
-        de_dx, d2e_dx2 = self._chain_rule_contact_hess(f_grad_vals, s_derv_vals, f_hess_vals, s_sopa_vals)
-
-        # Prepare inputs for friction force functions
-        ffr_jacobian_input = self._get_ffr_jacobian_inputs(velocities, de_dx)
-
-        # Calculate friction forces on all four nodes
-        ffr = self._compute_ffr(velocities, de_dx)
-
-        # Calculate the incomplete friction force gradients
-        ffr_grad_s = self.ffr_jacobian_func(*ffr_jacobian_input)
-
-        dfr_dx = self._chain_rule_friction_jacobian(ffr_grad_s, d2e_dx2)
+        # Compute contact energy Hessian (contact force Jacobian)
+        d2e_dx2 = np.array(self.ce_hess_func(*edges), dtype=np.float64).reshape((num_inputs, 12, 12))
 
         if self.friction:
+            # Compute friction forces
+            ffr = self._compute_friction(velocities, de_dx)
+
+            # Prepare inputs for friction force Jacobian function
+            ffr_jacobian_input = self._get_friction_jacobian_inputs(velocities, de_dx)
+
+            # Compute partial friction force Jacobian
+            dfr_dfc = self.fr_jaco_func(*ffr_jacobian_input)
+
+            # Obtain friction force Jacobian using chain rule
+            dfr_dx = self._chain_rule_friction_jacobian(dfr_dfc, d2e_dx2)
+
             total_forces = de_dx + ffr
             total_jacobian = d2e_dx2 + dfr_dx
         else:
             total_forces = de_dx
             total_jacobian = d2e_dx2
 
-        # Write gradient and hessian to shared memory location for DER
+        # Write gradient and Hessian to shared memory location for DER
         self._py_to_cpp_hess(total_forces, total_jacobian, edge_ids)
 
-        # Apply contact stiffness to gradient and hessian
+        # Apply contact stiffness to gradient and Hessian
         self.forces *= self.contact_stiffness
-        self.hessian *= (self.contact_stiffness * self.scale)  # Hessian must be multiplied by scale factor
+        # Note that for the Hessian we apply the scale factor here.
+        # Technically, the forces need to be multiplied by S while the
+        # Hessian is multiplied by S^2 (due to chain rule), but we
+        # implicitly factor in a scale factor into the contact stiffness
+        # to prevent the stiffness from being too low of a value.
+        self.hessian *= (self.contact_stiffness * self.scale)
 
     def _update_contact_stiffness(self, curr_cd, last_cd):
         diff = curr_cd - last_cd
@@ -255,7 +224,7 @@ class IMC:
                 self._construct_possible_edge_combos()
                 edge_ids, closest_distance = self._detect_collisions()
 
-            # Reset all gradient and hessian values to 0
+            # Reset all gradient and Hessian values to 0
             self.forces[:] = 0.
             if hessian: self.hessian[:] = 0.
 
@@ -264,16 +233,16 @@ class IMC:
             if num_con != 0:
                 # Obtain edge combinations and velocities
                 if first_iter: velocities = self._prepare_velocities(edge_ids)
-                edge_combos, closest_distance, f_out_vals = self._prepare_edges(edge_ids)
+                edge_combos, closest_distance = self._prepare_edges(edge_ids)
 
                 # Increase/decrease contact stiffness depending on penetration severity
                 if first_iter: self._update_contact_stiffness(closest_distance, last_cd)
 
                 # Compute forces (and Hessian if condition is met)
                 if not hessian:
-                    self._get_forces(edge_combos, edge_ids, velocities, f_out_vals)
+                    self._get_forces(edge_combos, edge_ids, velocities)
                 else:
-                    self._get_forces_and_hessian(edge_combos, edge_ids, velocities, f_out_vals)
+                    self._get_forces_and_hessian(edge_combos, edge_ids, velocities)
 
             self.meta_data[4] = closest_distance / self.scale
 
@@ -295,22 +264,14 @@ class IMC:
 def main():
     np.seterr(divide='ignore', invalid='ignore')
 
-    # Simulation
-    col_limit  = float(sys.argv[2])
-    cont_stiff = float(sys.argv[3])
-    ce_k       = float(sys.argv[4])
-    mu_k       = float(sys.argv[5])
-    radius     = float(sys.argv[6])
-    num_nodes  = int(sys.argv[7])
-    S          = float(sys.argv[8])
-
-    params = {'num_nodes': num_nodes,
-              'radius': radius,
-              'collision_limit': col_limit,
-              'contact_stiffness': cont_stiff,
-              'ce_k': ce_k,
-              'S': S,
-              'mu_k': mu_k}
+    # Simulation params
+    params = {'collision_limit': float(sys.argv[2]),
+              'contact_stiffness': float(sys.argv[3]),
+              'ce_k': float(sys.argv[4]),
+              'mu_k': float(sys.argv[5]),
+              'radius': float(sys.argv[6]),
+              'num_nodes': int(sys.argv[7]),
+              'S': float(sys.argv[8])}
 
     contact_model = IMC(params)
     contact_model.start_server()
