@@ -16,15 +16,14 @@ void collision::preparePythonSharedMemory(int iter)
 {
     // write data to shared memory location
     // This is inefficient but is okay for now
-    Vector3d curr_u;
     Vector3d node;
     if (iter == 0) {
-        // velocity only needs to be updated at the start of each time step
+        // Previous time step node coordinates only needs to be updated once.
         for (int i = 0; i < rod->nv; i++) {
-            curr_u = rod->getVelocity(i);
-            velocities[i*3] = curr_u(0);
-            velocities[(i*3)+1] = curr_u(1);
-            velocities[(i*3)+2] = curr_u(2);
+            node = rod->getPreVertex(i);
+            prev_node_coordinates[i*3] = node(0);
+            prev_node_coordinates[(i*3)+1] = node(1);
+            prev_node_coordinates[(i*3)+2] = node(2);
         }
     }
     for (int i = 0; i < rod->nv; i++) {

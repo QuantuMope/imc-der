@@ -35,6 +35,7 @@ pid_t pid;
 double* contact_forces;
 double* contact_hessian;
 double* node_coordinates;
+double* prev_node_coordinates;
 double* velocities;
 double* meta_data;
 
@@ -178,18 +179,18 @@ int main(int argc,char *argv[])
     int meta_data_size = 7;
 
     int nc_fd = shm_open(("node_coordinates" + port).c_str(), O_CREAT | O_RDWR, 0666);
-    int ve_fd = shm_open(("velocities" + port).c_str(), O_CREAT | O_RDWR, 0666);
+    int pn_fd = shm_open(("prev_node_coordinates" + port).c_str(), O_CREAT | O_RDWR, 0666);
     int me_fd = shm_open(("meta_data" + port).c_str(), O_CREAT | O_RDWR, 0666);
     int cf_fd = shm_open(("contact_forces" + port).c_str(), O_CREAT | O_RDWR, 0666);
     int ch_fd = shm_open(("contact_hessian" + port).c_str(), O_CREAT | O_RDWR, 0666);
 
-    if (nc_fd == -1 || ve_fd == -1 || me_fd == -1 || cf_fd == -1 || ch_fd == -1)
+    if (nc_fd == -1 || pn_fd == -1 || me_fd == -1 || cf_fd == -1 || ch_fd == -1)
     {
         cout << "Failed to open shared memory for writing" << endl;
         exit(1);
     }
     if (ftruncate(nc_fd, sizeof(double)*nv) == -1 ||
-        ftruncate(ve_fd, sizeof(double)*nv) == -1 ||
+        ftruncate(pn_fd, sizeof(double)*nv) == -1 ||
         ftruncate(me_fd, sizeof(double)*meta_data_size) == -1 ||
         ftruncate(cf_fd, sizeof(double)*nv) == -1 ||
         ftruncate(ch_fd, sizeof(double)*hess_size) == -1)
@@ -198,13 +199,13 @@ int main(int argc,char *argv[])
         exit(1);
     }
     node_coordinates = (double*)mmap(NULL, sizeof(double)*nv, PROT_WRITE, MAP_SHARED, nc_fd, 0);
-    velocities = (double*)mmap(NULL, sizeof(double)*nv, PROT_WRITE, MAP_SHARED, ve_fd, 0);
+    prev_node_coordinates = (double*)mmap(NULL, sizeof(double)*nv, PROT_WRITE, MAP_SHARED, pn_fd, 0);
     meta_data = (double*)mmap(NULL, sizeof(double)*meta_data_size, PROT_WRITE, MAP_SHARED, me_fd, 0);
     contact_forces = (double*)mmap(NULL, sizeof(double)*nv, PROT_READ, MAP_SHARED, cf_fd, 0);
     contact_hessian = (double*)mmap(NULL, sizeof(double)*hess_size, PROT_READ, MAP_SHARED, ch_fd, 0);
 
     if (node_coordinates == MAP_FAILED ||
-        velocities == MAP_FAILED ||
+        prev_node_coordinates == MAP_FAILED ||
         meta_data == MAP_FAILED ||
         contact_forces == MAP_FAILED ||
         contact_hessian == MAP_FAILED)

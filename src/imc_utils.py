@@ -8,6 +8,7 @@ from numba import njit
 
 @njit(cache=True)
 def min_dist_vectorized(edges):
+    edges = edges[:, :12]
     assert edges.shape[1] == 12
     num_inputs = edges.shape[0]
     x1s, x1e, x2s, x2e = edges[:, :3], edges[:, 3:6], edges[:, 6:9], edges[:, 9:]
@@ -82,13 +83,15 @@ def min_dist_f_out_vectorized(edges, k=50.0):
 
 
 @njit(cache=True)
-def compute_friction(velocities, forces, mu_k):
-    v1s, v1e = velocities[:, :3], velocities[:, 3:6]
-    v2s, v2e = velocities[:, 6:9], velocities[:, 9:]
+def compute_friction(data, forces, mu_k, dt):
+    x1s, x1e = data[:, :3], data[:, 3:6]
+    x2s, x2e = data[:, 6:9], data[:, 9:12]
+    x1s0, x1e0 = data[:, 12:15], data[:, 15:18]
+    x2s0, x2e0 = data[:, 18:21], data[:, 21:24]
     f1s, f1e = forces[:, :3], forces[:, 3:6]
     f2s, f2e = forces[:, 6:9], forces[:, 9:]
 
-    num_inputs = velocities.shape[0]
+    num_inputs = data.shape[0]
 
     f1s_n = np.sqrt((f1s**2).sum(axis=1))
     f2s_n = np.sqrt((f2s**2).sum(axis=1))
@@ -113,6 +116,11 @@ def compute_friction(velocities, forces, mu_k):
     u1 = u1.reshape((num_inputs, 1))
     u2 = u2.reshape((num_inputs, 1))
 
+    v1s = (x1s - x1s0)
+    v1e = (x1e - x1e0)
+    v2s = (x2s - x2s0)
+    v2e = (x2e - x2e0)
+
     v1 = t1 * v1s + t2 * v1e
     v2 = u1 * v2s + u2 * v2e
     v_rel = v1 - v2
@@ -125,13 +133,17 @@ def compute_friction(velocities, forces, mu_k):
     tv_rel = v_rel - rem
     tv_rel_n = (np.sqrt((tv_rel ** 2).sum(axis=1))).reshape((num_inputs, 1))
 
-    heaviside = 1 / (1 + np.exp(-50.0 * (tv_rel_n - 0.15)))
-
     tv_rel_u = tv_rel / tv_rel_n
+
+    tv_rel_n *= 1 / dt * 1000
+    heaviside = 2 / (1 + np.exp(-tv_rel_n)) - 1
+
+    # print("{:.3f} {:.3f} {:.3f} | {:.3f} {:.3f} {:.3f}".format(np.mean(heaviside), np.max(heaviside), np.min(heaviside),
+    #                                                            np.mean(tv_rel_n), np.max(tv_rel_n), np.min(tv_rel_n)))
 
     ffr_e = heaviside * tv_rel_u * ffr_val.reshape((num_inputs, 1))
 
-    ffr = np.zeros_like(velocities, dtype=np.float64)
+    ffr = np.zeros((num_inputs, 12), dtype=np.float64)
 
     ffr[:, :3] = t1 * ffr_e
     ffr[:, 3:6] = t2 * ffr_e
@@ -142,7 +154,7 @@ def compute_friction(velocities, forces, mu_k):
 
 
 @njit(cache=True)
-def construct_possible_edge_combos(edges, edge_combos, node_data, ia):
+def construct_possible_edge_combos(edges, edge_combos, node_data, ia, scale):
     num_edges = edges.shape[0]
 
     # Construct list of all edge coordinates
@@ -157,6 +169,8 @@ def construct_possible_edge_combos(edges, edge_combos, node_data, ia):
         edge_combos[ri:ri+add, :6] = base_edge
         edge_combos[ri:ri+add, 6:] = edges[i+ia+1:]
         ri += add
+
+    edge_combos *= scale
 
 
 @njit(cache=True)
@@ -205,18 +219,17 @@ def detect_collisions(edge_combos, edge_ids, collision_limit, contact_len):
 
 
 @njit(cache=True)
-def prepare_edges(edge_ids, node_data):
-    num_edges = edge_ids.shape[0]
-    edge_combos = np.zeros((num_edges, 12), dtype=np.float64)
-
-    for i, (e1, e2) in enumerate(edge_ids):
-        edge_combos[i, :6] = node_data[3*e1:(3*e1)+6]
-        edge_combos[i, 6:] = node_data[3*e2:(3*e2)+6]
-    dists = min_dist_vectorized(edge_combos)
-
-    closest_distance = np.min(dists)
-
-    return edge_combos, closest_distance
+def prepare_edges(edge_ids, edge_combos, first_iter, node_data, prev_node_data):
+    if first_iter:
+        for i, (e1, e2) in enumerate(edge_ids):
+            edge_combos[i, :6] = node_data[3*e1:(3*e1)+6]
+            edge_combos[i, 6:12] = node_data[3*e2:(3*e2)+6]
+            edge_combos[i, 12:18] = prev_node_data[3*e1:(3*e1)+6]
+            edge_combos[i, 18:] = prev_node_data[3*e2:(3*e2)+6]
+    else:
+        for i, (e1, e2) in enumerate(edge_ids):
+            edge_combos[i, :6] = node_data[3*e1:(3*e1)+6]
+            edge_combos[i, 6:12] = node_data[3*e2:(3*e2)+6]
 
 
 @njit(cache=True)
@@ -302,17 +315,17 @@ def chain_rule_friction_jacobian(dfr_dfc, dfc_dx):
 
          Note that d2e_dx2 := dfc_dx
     """
-
-    return dfr_dfc @ dfc_dx
+    return dfr_dfc[:, :, :12] + dfr_dfc[:, :, 12:] @ dfc_dx
 
 
 @njit(cache=True)
-def get_friction_jacobian_inputs(velocities, contact_force, mu_k):
-    ffr_jac_input = np.zeros((velocities.shape[0], 25), dtype=np.float64)
+def get_friction_jacobian_inputs(data, contact_force, mu_k, dt):
+    ffr_jac_input = np.zeros((data.shape[0], 38), dtype=np.float64)
 
-    ffr_jac_input[:, :12] = velocities
-    ffr_jac_input[:, 12:24] = contact_force
-    ffr_jac_input[:, 24] = mu_k
+    ffr_jac_input[:, :24] = data
+    ffr_jac_input[:, 24:36] = contact_force
+    ffr_jac_input[:, 36] = mu_k
+    ffr_jac_input[:, 37] = dt
 
     return ffr_jac_input
 

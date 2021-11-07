@@ -126,7 +126,8 @@ void timeStepper::pardisoSolver()
     }
 
     int      nnz = ia[n];
-    int      mtype = 1;        /* Real symmetric matrix */
+//    int      mtype = 1;        /* Real symmetric matrix */
+    int      mtype = 11;
 
     /* RHS and solution vectors. */
     double   b[n], x[n];

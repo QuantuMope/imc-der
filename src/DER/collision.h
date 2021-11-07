@@ -9,6 +9,7 @@ extern zmq::socket_t socket;
 extern double *contact_forces;
 extern double *contact_hessian;
 extern double *node_coordinates;
+extern double *prev_node_coordinates;
 
 class collision
 {

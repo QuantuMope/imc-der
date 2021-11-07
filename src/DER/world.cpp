@@ -263,7 +263,7 @@ void world::updateTimeStep()
 
     updateBoundary();
 
-//    rod->updateGuess();  // our guess is just the previous position
+    rod->updateGuess();  // our guess is just the previous position
     newtonMethod(solved);
 
     // calculate pull forces;
@@ -306,7 +306,9 @@ void world::newtonDamper()
     if (iter < 10)
         alpha = 1.0;
     else
-        alpha *= 0.95;
+        alpha *= 0.90;
+    if (alpha < 0.1)
+        alpha = 0.1;
 }
 
 
