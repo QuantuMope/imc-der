@@ -114,7 +114,7 @@ def generate_friction_jacobian_function():
     f1e = se.symarray('f1e', 3)
     f2s = se.symarray('f2s', 3)
     f2e = se.symarray('f2e', 3)
-    mu_k, dt = se.symbols('mu_k, dt')
+    mu_k, dt, vel_tol = se.symbols('mu_k, dt, vel_tol')
 
     # We can take advantage of the fact that force vectors are always parallel
     # and that their magnitudes vary accordingly with t and u.
@@ -153,10 +153,8 @@ def generate_friction_jacobian_function():
     tv_rel2_n = se.sqrt((tv_rel2 ** 2).sum())
     tv_rel2_u = tv_rel2 / tv_rel2_n
 
-    # tv_rel1_n *= 1 / dt * 1000
-    # tv_rel2_n *= 1 / dt * 1000
-    tv_rel1_n *= 1 / dt * 100000
-    tv_rel2_n *= 1 / dt * 100000
+    tv_rel1_n *= 1 / dt * vel_tol
+    tv_rel2_n *= 1 / dt * vel_tol
     heaviside1 = 2 / (1 + se.exp(-tv_rel1_n)) - 1
     heaviside2 = 2 / (1 + se.exp(-tv_rel2_n)) - 1
 
@@ -168,7 +166,7 @@ def generate_friction_jacobian_function():
     ffr2s = u1 * ffr_e2
     ffr2e = u2 * ffr_e2
 
-    inputs = se.Matrix([*x1s, *x1e, *x2s, *x2e, *x1s0, *x1e0, *x2s0, *x2e0, *f1s, *f1e, *f2s, *f2e, mu_k, dt])
+    inputs = se.Matrix([*x1s, *x1e, *x2s, *x2e, *x1s0, *x1e0, *x2s0, *x2e0, *f1s, *f1e, *f2s, *f2e, mu_k, dt, vel_tol])
 
     wrt = se.Matrix([*x1s, *x1e, *x2s, *x2e, *f1s, *f1e, *f2s, *f2e])
 

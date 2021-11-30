@@ -84,11 +84,13 @@ Specifiable parameters are as follows (we use SI units):
 - ```deltaTime``` - Time step size.
 - ```friction (0 or 1)``` - Flag indicating whether friction will be simulated.
 - ```mu_k``` - Kinetic friction coefficient.
+- ```velTol``` - Velocity tolerance for static friction.
 - ```col``` - Scaled collision limit.
 - ```con``` - Initial contact stiffness.
 - ```ce_k``` - Contact energy curve stiffness (*functions for this value must be pre-generated*).
 - ```S``` - Scaling factor.
 - ```knotConfig``` - File name for the initial knot configuration. Should be a txt file located in ```DER/knot_configurations``` directory.
+- ```lineSearch (0 or 1)``` - Flag indicating whether line search will be used.
 - ```contactMode (0 or 1 or 2)``` - Flag indicating algorithm type, (0: explicit with dgb, 1: implicit with pardiso, 2: hybrid)
 - ```limit``` - Number of iterations before algorithm switches to implicit (*ignored if ```contactMode``` is not 2*).
 

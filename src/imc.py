@@ -18,6 +18,7 @@ class IMC:
         self.collision_limit = params['collision_limit']
         self.contact_stiffness = params['contact_stiffness']
         self.mu_k = params['mu_k']
+        self.vel_tol = params['vel_tol']
         self.dt = None
 
         self.contact_len = self.radius * 2
@@ -104,10 +105,10 @@ class IMC:
         return iu.prepare_edges(edge_ids, edge_combos, first_iter, self.node_coordinates, self.prev_node_coordinates)
 
     def _compute_friction(self, data, contact_forces):
-        return iu.compute_friction(data, contact_forces, self.mu_k, self.dt)
+        return iu.compute_friction(data, contact_forces, self.mu_k, self.dt, self.vel_tol)
 
     def _get_friction_jacobian_inputs(self, data, contact_forces):
-        return iu.get_friction_jacobian_inputs(data, contact_forces, self.mu_k, self.dt)
+        return iu.get_friction_jacobian_inputs(data, contact_forces, self.mu_k, self.dt, self.vel_tol)
 
     @staticmethod
     def _chain_rule_friction_jacobian(dfr_dfc, dfc_dx):
@@ -270,7 +271,8 @@ def main():
               'mu_k': float(sys.argv[5]),
               'radius': float(sys.argv[6]),
               'num_nodes': int(sys.argv[7]),
-              'S': float(sys.argv[8])}
+              'S': float(sys.argv[8]),
+              'vel_tol': int(sys.argv[9])}
 
     contact_model = IMC(params)
     contact_model.start_server()

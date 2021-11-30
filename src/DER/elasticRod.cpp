@@ -480,7 +480,8 @@ void elasticRod::updateGuess()
 {
     for (int c=0; c < uncons; c++)
     {
-        x[unconstrainedMap[c]] = x0[unconstrainedMap[c]] + u[unconstrainedMap[c]] * dt;
+//        x[unconstrainedMap[c]] = x0[unconstrainedMap[c]] + u[unconstrainedMap[c]] * dt;
+        x[unconstrainedMap[c]] = x0[unconstrainedMap[c]] + 0.1 * u[unconstrainedMap[c]] * dt;
 //        x[unconstrainedMap[c]] = x0[unconstrainedMap[c]];  // doesn't work well for implicit friction
     }
 }

@@ -72,6 +72,8 @@ private:
     double record_nodes_start;
     double record_nodes_end;
     string knot_config;
+    int vel_tol;
+    int line_search;
 };
 
 #include "setInput.tcc"

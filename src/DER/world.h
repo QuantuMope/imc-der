@@ -74,6 +74,7 @@ private:
     int limit;
     int contact_mode;
     int hessian;
+    int line_search;
     string knot_config;
     double alpha;
 

@@ -38,6 +38,8 @@ setInput::setInput()
     AddOption("recordNodes", "Option for whether or not to record nodes", record_nodes);
     AddOption("recordNodesStart", "Start time for recording nodes", record_nodes_start);
     AddOption("recordNodesEnd", "End time for recording nodes", record_nodes_end);
+    AddOption("velTol", "Friction velocity tolerance", vel_tol);
+    AddOption("lineSearch", "Flag for enabling line search", line_search);
 }
 
 setInput::~setInput()

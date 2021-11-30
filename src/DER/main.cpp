@@ -230,13 +230,14 @@ int main(int argc,char *argv[])
     string con = to_string(inputData.GetScalarOpt("con"));
     string ce_k = to_string(inputData.GetScalarOpt("ce_k"));
     string mu_k = to_string(inputData.GetScalarOpt("mu_k"));
-    string S = to_string(inputData.GetScalarOpt("S")).c_str();
+    string S = to_string(inputData.GetScalarOpt("S"));
     string radius = to_string(inputData.GetScalarOpt("rodRadius"));
     string nv_py = to_string(inputData.GetIntOpt("numVertices"));
+    string vel_tol = to_string(inputData.GetIntOpt("velTol"));
 
     cout << "Input parameters to python" << endl;
-    cout << "port " << port << " col " << col << " con " << con << " ce_k " << ce_k << endl;
-    cout << "mu_k " << mu_k << " rod radius " << radius << " number of vertices " << nv_py << endl;
+    cout << "port " << port << " col " << col << " con " << con << " ce_k " << ce_k << " mu_k " << mu_k << endl;
+    cout << "rod radius " << radius << " number of vertices " << nv_py << " velocity tolerance " << vel_tol << endl;
 
     // Start up Python Server.
     if ((pid = fork()) < 0) {
@@ -253,6 +254,7 @@ int main(int argc,char *argv[])
                                    radius.c_str(),
                                    nv_py.c_str(),
                                    S.c_str(),
+                                   vel_tol.c_str(),
                                    (char*)NULL);
         if (server_result < 0) {
             cout << "Failed to initialize python server." << endl;

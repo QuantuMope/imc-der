@@ -83,7 +83,7 @@ def min_dist_f_out_vectorized(edges, k=50.0):
 
 
 @njit(cache=True)
-def compute_friction(data, forces, mu_k, dt):
+def compute_friction(data, forces, mu_k, dt, vel_tol):
     x1s, x1e = data[:, :3], data[:, 3:6]
     x2s, x2e = data[:, 6:9], data[:, 9:12]
     x1s0, x1e0 = data[:, 12:15], data[:, 15:18]
@@ -135,7 +135,7 @@ def compute_friction(data, forces, mu_k, dt):
 
     tv_rel_u = tv_rel / tv_rel_n
 
-    tv_rel_n *= 1 / dt * 100000
+    tv_rel_n *= 1 / dt * vel_tol
     heaviside = 2 / (1 + np.exp(-tv_rel_n)) - 1
 
     # print("{:.3f} {:.3f} {:.3f} | {:.3f} {:.3f} {:.3f}".format(np.mean(heaviside), np.max(heaviside), np.min(heaviside),
@@ -319,13 +319,14 @@ def chain_rule_friction_jacobian(dfr_dfc, dfc_dx):
 
 
 @njit(cache=True)
-def get_friction_jacobian_inputs(data, contact_force, mu_k, dt):
-    ffr_jac_input = np.zeros((data.shape[0], 38), dtype=np.float64)
+def get_friction_jacobian_inputs(data, contact_force, mu_k, dt, vel_tol):
+    ffr_jac_input = np.zeros((data.shape[0], 39), dtype=np.float64)
 
     ffr_jac_input[:, :24] = data
     ffr_jac_input[:, 24:36] = contact_force
     ffr_jac_input[:, 36] = mu_k
     ffr_jac_input[:, 37] = dt
+    ffr_jac_input[:, 38] = vel_tol
 
     return ffr_jac_input
 
