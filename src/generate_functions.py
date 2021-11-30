@@ -153,10 +153,10 @@ def generate_friction_jacobian_function():
     tv_rel2_n = se.sqrt((tv_rel2 ** 2).sum())
     tv_rel2_u = tv_rel2 / tv_rel2_n
 
-    tv_rel1_n *= 1 / dt * 1000
-    tv_rel2_n *= 1 / dt * 1000
-    # tv_rel1_n *= 1 / dt * 10000
-    # tv_rel2_n *= 1 / dt * 10000
+    # tv_rel1_n *= 1 / dt * 1000
+    # tv_rel2_n *= 1 / dt * 1000
+    tv_rel1_n *= 1 / dt * 100000
+    tv_rel2_n *= 1 / dt * 100000
     heaviside1 = 2 / (1 + se.exp(-tv_rel1_n)) - 1
     heaviside2 = 2 / (1 + se.exp(-tv_rel2_n)) - 1
 

@@ -159,7 +159,6 @@ class IMC:
         # implicitly factor in a scale factor into the contact stiffness
         # to prevent the stiffness from being too low of a value.
         d2e_dx2 *= self.contact_stiffness * self.scale
-
         if self.friction:
             # Compute friction forces
             ffr = self._compute_friction(edges, de_dx)

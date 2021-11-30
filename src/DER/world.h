@@ -129,6 +129,8 @@ private:
     Vector3d gravity;
     Vector3d inertial;
     Vector3d dampingF;
+    double linesearch();
+
 };
 
 #endif

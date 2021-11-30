@@ -12,6 +12,7 @@ timeStepper::timeStepper(elasticRod &m_rod, int &m_hessian)
     jacobianLen = (2 * kl + ku + 1) * freeDOF;
     jacobian = new double [jacobianLen];
     dx = new double[freeDOF];
+    DX = VectorXd::Zero(freeDOF);
     nrhs = 1;
     ipiv = new int[freeDOF];
     info = 0;
@@ -64,7 +65,7 @@ void timeStepper::addJacobian(int ind1, int ind2, double p)
         col = mappedInd1;
         offset = row + col * NUMROWS;
         jacobian[offset] = jacobian[offset] + p;
-        Jacobian(mappedInd2, mappedInd1) = Jacobian(mappedInd2, mappedInd1) + p; 
+        Jacobian(mappedInd2, mappedInd1) = Jacobian(mappedInd2, mappedInd1) + p;
     }
 }
 
@@ -135,8 +136,8 @@ void timeStepper::pardisoSolver()
 
     /* Internal solver memory pointer pt,                  */
     /* 32-bit: int pt[64]; 64-bit: long int pt[64]         */
-    /* or void *pt[64] should be OK on both architectures  */ 
-    void    *pt[64]; 
+    /* or void *pt[64] should be OK on both architectures  */
+    void    *pt[64];
 
     /* Pardiso control parameters. */
     int      iparm[64];
@@ -153,15 +154,15 @@ void timeStepper::pardisoSolver()
     double   ddum;              /* Double dummy */
     int      idum;              /* Integer dummy. */
 
-   
+
 /* -------------------------------------------------------------------- */
 /* ..  Setup Pardiso control parameters.                                */
 /* -------------------------------------------------------------------- */
 
     error = 0;
     solver = 0; /* use sparse direct solver */
-    pardisoinit (pt,  &mtype, &solver, iparm, dparm, &error); 
-    
+    pardisoinit (pt,  &mtype, &solver, iparm, dparm, &error);
+
     /* Numbers of processors, value of OMP_NUM_THREADS */
     var = getenv("OMP_NUM_THREADS");
     if(var != NULL)
@@ -174,7 +175,7 @@ void timeStepper::pardisoSolver()
 
     maxfct = 1;     /* Maximum number of numerical factorizations.  */
     mnum   = 1;         /* Which factorization to use. */
-    
+
     msglvl = 0;         /* Print statistical information  */
     error  = 0;         /* Initialize error flag */
 
@@ -199,7 +200,7 @@ void timeStepper::pardisoSolver()
 /*     Checks the consistency of the given matrix.                      */
 /*     Use this functionality only for debugging purposes               */
 /* -------------------------------------------------------------------- */
-    
+
     pardiso_chkmatrix  (&mtype, &n, a, ia, ja, &error);
     if (error != 0) {
         printf("\nERROR in consistency of matrix: %d", error);
@@ -231,17 +232,17 @@ void timeStepper::pardisoSolver()
     //     printf("\nERROR right hand side: %d", error);
     //     exit(1);
     // }
- 
+
 /* -------------------------------------------------------------------- */
 /* ..  Reordering and Symbolic Factorization.  This step also allocates */
 /*     all memory that is necessary for the factorization.              */
 /* -------------------------------------------------------------------- */
-    phase = 11; 
+    phase = 11;
 
     pardiso (pt, &maxfct, &mnum, &mtype, &phase,
          &n, a, ia, ja, &idum, &nrhs,
              iparm, &msglvl, &ddum, &ddum, &error, dparm);
-    
+
     if (error != 0) {
         printf("\nERROR during symbolic factorization: %d", error);
         exit(1);
@@ -249,48 +250,49 @@ void timeStepper::pardisoSolver()
     // printf("\nReordering completed ... ");
     // printf("\nNumber of nonzeros in factors  = %d", iparm[17]);
     // printf("\nNumber of factorization MFLOPS = %d", iparm[18]);
-   
+
 /* -------------------------------------------------------------------- */
 /* ..  Numerical factorization.                                         */
-/* -------------------------------------------------------------------- */    
+/* -------------------------------------------------------------------- */
     phase = 22;
     iparm[32] = 1; /* compute determinant */
 
     pardiso (pt, &maxfct, &mnum, &mtype, &phase,
              &n, a, ia, ja, &idum, &nrhs,
              iparm, &msglvl, &ddum, &ddum, &error,  dparm);
-   
+
     if (error != 0) {
         printf("\nERROR during numerical factorization: %d", error);
         exit(2);
     }
     // printf("\nFactorization completed ...\n ");
 
-/* -------------------------------------------------------------------- */    
+/* -------------------------------------------------------------------- */
 /* ..  Back substitution and iterative refinement.                      */
-/* -------------------------------------------------------------------- */    
+/* -------------------------------------------------------------------- */
     phase = 33;
 
     iparm[7] = 1;       /* Max numbers of iterative refinement steps. */
-   
+
     pardiso (pt, &maxfct, &mnum, &mtype, &phase,
              &n, a, ia, ja, &idum, &nrhs,
              iparm, &msglvl, b, x, &error,  dparm);
-   
+
     if (error != 0) {
         printf("\nERROR during solution: %d", error);
         exit(3);
     }
 
-    for (i = 0; i < n; i++) 
+    for (i = 0; i < n; i++)
     {
         dx[i] = x[i];
+        DX[i] = x[i];
     }
 
 
-/* -------------------------------------------------------------------- */    
+/* -------------------------------------------------------------------- */
 /* ..  Convert matrix back to 0-based C-notation.                       */
-/* -------------------------------------------------------------------- */ 
+/* -------------------------------------------------------------------- */
     for (i = 0; i < n+1; i++) {
         ia[i] -= 1;
     }
@@ -298,11 +300,11 @@ void timeStepper::pardisoSolver()
         ja[i] -= 1;
     }
 
-/* -------------------------------------------------------------------- */    
+/* -------------------------------------------------------------------- */
 /* ..  Termination and release of memory.                               */
-/* -------------------------------------------------------------------- */    
+/* -------------------------------------------------------------------- */
     phase = -1;                 /* Release internal memory. */
-    
+
     pardiso (pt, &maxfct, &mnum, &mtype, &phase,
              &n, &ddum, ia, ja, &idum, &nrhs,
              iparm, &msglvl, &ddum, &ddum, &error,  dparm);

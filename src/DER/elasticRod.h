@@ -123,6 +123,8 @@ class elasticRod
 
     void freeVertexBoundaryCondition(int k);
 
+    VectorXd xold;
+
     private:
     // no private variable is likely a bad idea. But let's roll with it for now
 };

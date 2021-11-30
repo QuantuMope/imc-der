@@ -135,7 +135,7 @@ def compute_friction(data, forces, mu_k, dt):
 
     tv_rel_u = tv_rel / tv_rel_n
 
-    tv_rel_n *= 1 / dt * 1000
+    tv_rel_n *= 1 / dt * 100000
     heaviside = 2 / (1 + np.exp(-tv_rel_n)) - 1
 
     # print("{:.3f} {:.3f} {:.3f} | {:.3f} {:.3f} {:.3f}".format(np.mean(heaviside), np.max(heaviside), np.min(heaviside),

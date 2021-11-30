@@ -78,17 +78,17 @@ void world::OpenFile(ofstream &outfile, string filename)
 
 void world::outputNodeCoordinates(ofstream &outfile)
 {
-    Vector3d curr_node;
-    double curr_theta;
-    for (int i = 0; i < rod->nv-1; i++) {
-        curr_node = rod->getVertex(i);
-        curr_theta = rod->getTheta(i);
-        outfile << curr_node(0) << " " << curr_node(1) << " " <<
-                   curr_node(2) << " " << curr_theta << endl;
-    }
-    curr_node = rod->getVertex(rod->nv-1);
-    outfile << curr_node(0) << " " << curr_node(1) << " " <<
-               curr_node(2) << " " << 0.0 << endl;
+    // Vector3d curr_node;
+    // double curr_theta;
+    // for (int i = 0; i < rod->nv-1; i++) {
+    //     curr_node = rod->getVertex(i);
+    //     curr_theta = rod->getTheta(i);
+    //     outfile << curr_node(0) << " " << curr_node(1) << " " <<
+    //                curr_node(2) << " " << curr_theta << endl;
+    // }
+    // curr_node = rod->getVertex(rod->nv-1);
+    // outfile << curr_node(0) << " " << curr_node(1) << " " <<
+    //            curr_node(2) << " " << 0.0 << endl;
 }
 
 void world::CloseFile(ofstream &outfile)
@@ -413,6 +413,7 @@ void world::newtonMethod(bool &solved)
         if (solved == false)
         {
             stepper->integrator(); // Solve equations of motion
+            alpha = linesearch();
             rod->updateNewtonX(dx, alpha); // new q = old q + Delta q
             iter++;
             if (pulling())
@@ -453,4 +454,84 @@ double world::getScaledCoordinate(int i)
 double world::getCurrentTime()
 {
     return currentTime;
+}
+
+//line search algorithm
+double world::linesearch()
+{
+  // store current x
+  rod->xold = rod->x;
+  //Initialize a interval for optimal learning rate alpha
+  double amax = 2;
+  double amin = 1e-3;
+  double al = 0;
+  double au = 1;
+
+  double a = 1;
+
+  //compute the slope initially
+  double q0 = 0.5 * pow(stepper->Force.norm(), 2);
+  double dq0 = -(stepper->Force.transpose() * stepper->Jacobian * stepper->DX)(0);
+
+  bool success = false;
+  double m2 = 0.9;
+  double m1 = 0.1;
+  while (!success)
+  {
+    rod->x = rod->xold;
+    rod->updateNewtonX(dx, a);
+
+    rod->prepareForIteration();
+
+    stepper->setZero();
+
+    // Compute the forces and the jacobians
+    m_inertialForce->computeFi();
+    m_stretchForce->computeFs();
+    m_bendingForce->computeFb();
+    m_twistingForce->computeFt();
+    m_gravityForce->computeFg();
+    m_dampingForce->computeFd();
+    IMC->preparePythonSharedMemory(1);
+    IMC->computeFc();
+
+    double q = 0.5 * pow(stepper->Force.norm(), 2);
+
+    double slope = (q - q0)/a;
+
+    // cout << slope<<" "<<dq0<<" "<<a<<endl;
+
+    if (slope >= m2 * dq0 && slope <= m1 * dq0)
+    {
+      success = true;
+    }
+    else
+    {
+      if (slope < m2 * dq0)
+      {
+        al = a;
+      }
+      else
+      {
+        au = a;
+      }
+
+      if (au < amax)
+      {
+        a = 0.5 * (al + au);
+      }
+      else
+      {
+        a = 10 * a;
+      }
+    }
+    if (a > amax || a < amin)
+    {
+      break;
+    }
+  }
+  rod->x = rod->xold;
+
+
+  return a;
 }

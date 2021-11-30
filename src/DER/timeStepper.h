@@ -7,7 +7,7 @@ extern "C" void dgbsv_( int* n, int* kl, int* ku, int* nrhs, double* ab, int* ld
 
 /* PARDISO prototype. */
 extern "C" void pardisoinit (void   *, int    *,   int *, int *, double *, int *);
-extern "C" void pardiso     (void   *, int    *,   int *, int *,    int *, int *, 
+extern "C" void pardiso     (void   *, int    *,   int *, int *,    int *, int *,
                   double *, int    *,    int *, int *,   int *, int *,
                      int *, double *, double *, int *, double *);
 extern "C" void pardiso_chkmatrix  (int *, int *, double *, int *, int *, int *);
@@ -35,6 +35,9 @@ public:
     VectorXd force;
 
     void update();
+    VectorXd Force;
+    MatrixXd Jacobian;
+    VectorXd DX;
 
 private:
     elasticRod *rod;
@@ -44,9 +47,6 @@ private:
     double *jacobian;
     double *dx;
     int *hessian;
-
-    VectorXd Force;
-    MatrixXd Jacobian;
 
     // utility variables
     int mappedInd, mappedInd1, mappedInd2;
