@@ -3,8 +3,6 @@
 
 #include "elasticRod.h"
 
-extern "C" void dgbsv_( int* n, int* kl, int* ku, int* nrhs, double* ab, int* ldab, int* ipiv, double* b, int* ldb, int* info );
-
 /* PARDISO prototype. */
 extern "C" void pardisoinit (void   *, int    *,   int *, int *, double *, int *);
 extern "C" void pardiso     (void   *, int    *,   int *, int *,    int *, int *,
@@ -19,12 +17,10 @@ extern "C" void pardiso_printstats (int *, int *, double *, int *, int *, int *,
 class timeStepper
 {
 public:
-    timeStepper(elasticRod &m_rod, int &m_hessian);
+    timeStepper(elasticRod &m_rod);
     ~timeStepper();
     double* getForce();
     double* getJacobian();
-    double* getdx_hess();
-    double* getdx_nohess();
     void setZero();
     void addForce(int ind, double p);
     void addJacobian(int ind1, int ind2, double p);
@@ -38,6 +34,7 @@ public:
     VectorXd Force;
     MatrixXd Jacobian;
     VectorXd DX;
+    double *dx;
 
 private:
     elasticRod *rod;
@@ -45,8 +42,6 @@ private:
 
     double *totalForce;
     double *jacobian;
-    double *dx;
-    int *hessian;
 
     // utility variables
     int mappedInd, mappedInd1, mappedInd2;

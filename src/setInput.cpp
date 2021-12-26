@@ -26,15 +26,10 @@ setInput::setInput()
     AddOption("waitTime", "Time to wait before pulling", wait_time);
     AddOption("pullSpeed", "Speed of the pull", pull_speed);
     AddOption("friction", "Turn on or off friction", friction);
-    AddOption("port", "Port number", port);
     AddOption("col", "Collision limit for collision detection", col);
-    AddOption("con", "Contact stiffness", con);
     AddOption("knotConfig", "Initial knot configuration", knot_config);
     AddOption("ce_k", "Contact energy steepness parameter", ce_k);
-    AddOption("mu_k", "Kinematic coefficient of friction", mu_k);
-    AddOption("S", "scaling factor for nodal coordinates", S);
-    AddOption("limit", "number of iters before switching to hessian mode", limit);
-    AddOption("contactMode", "Option for contact mode", contact_mode);
+    AddOption("mu", "Kinematic coefficient of friction", mu);
     AddOption("recordNodes", "Option for whether or not to record nodes", record_nodes);
     AddOption("recordNodesStart", "Start time for recording nodes", record_nodes_start);
     AddOption("recordNodesEnd", "End time for recording nodes", record_nodes_end);

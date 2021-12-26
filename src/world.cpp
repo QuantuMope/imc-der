@@ -1,7 +1,5 @@
 #include "world.h"
 
-extern pid_t pid;
-
 world::world() {
     ;
 }
@@ -10,41 +8,38 @@ world::world(setInput &m_inputData) {
     render = m_inputData.GetBoolOpt("render");                // boolean
     saveData = m_inputData.GetBoolOpt("saveData");            // boolean
 
-    // Physical parameters
-    RodLength = m_inputData.GetScalarOpt("RodLength");           // meter
-    helixradius = m_inputData.GetScalarOpt("helixradius");       // meter
-    gVector = m_inputData.GetVecOpt("gVector");                  // m/s^2
-    maxIter = m_inputData.GetIntOpt("maxIter");                  // maximum number of iterations
-    helixpitch = m_inputData.GetScalarOpt("helixpitch");         // meter
-    rodRadius = m_inputData.GetScalarOpt("rodRadius");           // meter
-    numVertices = m_inputData.GetIntOpt("numVertices");          // int_num
-    youngM = m_inputData.GetScalarOpt("youngM");                 // Pa
-    Poisson = m_inputData.GetScalarOpt("Poisson");               // dimensionless
-    deltaTime = m_inputData.GetScalarOpt("deltaTime");           // seconds
-    tol = m_inputData.GetScalarOpt("tol");                       // small number like 10e-7
-    stol = m_inputData.GetScalarOpt("stol");                     // small number, e.g. 0.1%
-    density = m_inputData.GetScalarOpt("density");               // kg/m^3
-    viscosity = m_inputData.GetScalarOpt("viscosity");           // viscosity in Pa-s
-    pull_time = m_inputData.GetScalarOpt("pullTime");            // get time of pulling
-    release_time = m_inputData.GetScalarOpt("releaseTime");      // get time of loosening
-    wait_time = m_inputData.GetScalarOpt("waitTime");            // get time of waiting
-    pull_speed = m_inputData.GetScalarOpt("pullSpeed");          // get speed of pulling
-    knot_config = m_inputData.GetStringOpt("knotConfig");        // get initial knot configuration
-    friction = m_inputData.GetIntOpt("friction");                // dynamic friction option
-    limit = m_inputData.GetIntOpt("limit");                      // number of iterations before hessian switch
+    RodLength = m_inputData.GetScalarOpt("RodLength");         // meter
+    helixradius = m_inputData.GetScalarOpt("helixradius");     // meter
+    gVector = m_inputData.GetVecOpt("gVector");                      // m/s^2
+    maxIter = m_inputData.GetIntOpt("maxIter");                // maximum number of iterations
+    helixpitch = m_inputData.GetScalarOpt("helixpitch");       // meter
+    rodRadius = m_inputData.GetScalarOpt("rodRadius");         // meter
+    numVertices = m_inputData.GetIntOpt("numVertices");        // int_num
+    youngM = m_inputData.GetScalarOpt("youngM");               // Pa
+    Poisson = m_inputData.GetScalarOpt("Poisson");             // dimensionless
+    deltaTime = m_inputData.GetScalarOpt("deltaTime");         // seconds
+    tol = m_inputData.GetScalarOpt("tol");                     // small number like 10e-7
+    stol = m_inputData.GetScalarOpt("stol");                   // small number, e.g. 0.1%
+    density = m_inputData.GetScalarOpt("density");             // kg/m^3
+    viscosity = m_inputData.GetScalarOpt("viscosity");         // viscosity in Pa-s
+    pull_time = m_inputData.GetScalarOpt("pullTime");          // get time of pulling
+    release_time = m_inputData.GetScalarOpt("releaseTime");    // get time of loosening
+    wait_time = m_inputData.GetScalarOpt("waitTime");          // get time of waiting
+    pull_speed = m_inputData.GetScalarOpt("pullSpeed");        // get speed of pulling
+    ce_k = m_inputData.GetScalarOpt("ce_k");                   // contact energy stiffness
+    col_limit = m_inputData.GetScalarOpt("col");               // distance limit for contact
+    friction = m_inputData.GetIntOpt("friction");              // dynamic friction option
+    mu = m_inputData.GetScalarOpt("mu");                       // friction coefficient
+    vel_tol = m_inputData.GetScalarOpt("velTol");              // velocity tolerance for smooth friction
     line_search = m_inputData.GetIntOpt("lineSearch");         // flag for enabling line search
+    knot_config = m_inputData.GetStringOpt("knotConfig");      // get initial knot configuration
 
-    contact_mode = m_inputData.GetIntOpt("contactMode");         // contact mode (nohess, hess, hybrid)
-    hessian = 0;                                                 // contact hessian switch
+    shearM = youngM / (2.0 * (1.0 + Poisson));                       // shear modulus
 
-    shearM = youngM / (2.0 * (1.0 + Poisson));                         // shear modulus
-
-    alpha = 1.0;                                                 // newton damper
+    alpha = 1.0;                                                 // newton step size
     total_iters = 0;                                             // total number of newton iterations
 
     totalTime = wait_time + pull_time + release_time;            // total sim time
-
-    meta_data[6] = deltaTime;                                    // set dt for python to see
 }
 
 world::~world() {
@@ -72,17 +67,17 @@ void world::OpenFile(ofstream &outfile, string filename) {
 }
 
 void world::outputNodeCoordinates(ofstream &outfile) {
-    // Vector3d curr_node;
-    // double curr_theta;
-    // for (int i = 0; i < rod->nv-1; i++) {
-    //     curr_node = rod->getVertex(i);
-    //     curr_theta = rod->getTheta(i);
-    //     outfile << curr_node(0) << " " << curr_node(1) << " " <<
-    //                curr_node(2) << " " << curr_theta << endl;
-    // }
-    // curr_node = rod->getVertex(rod->nv-1);
-    // outfile << curr_node(0) << " " << curr_node(1) << " " <<
-    //            curr_node(2) << " " << 0.0 << endl;
+     Vector3d curr_node;
+     double curr_theta;
+     for (int i = 0; i < rod->nv-1; i++) {
+         curr_node = rod->getVertex(i);
+         curr_theta = rod->getTheta(i);
+         outfile << curr_node(0) << " " << curr_node(1) << " " <<
+                    curr_node(2) << " " << curr_theta << endl;
+     }
+     curr_node = rod->getVertex(rod->nv-1);
+     outfile << curr_node(0) << " " << curr_node(1) << " " <<
+                curr_node(2) << " " << 0.0 << endl;
 }
 
 void world::CloseFile(ofstream &outfile) {
@@ -109,7 +104,7 @@ void world::CoutDataC(ofstream &outfile) {
     // Output pull forces here
     // Do not need to add endl here as it will be added when time spent is added
     outfile << currentTime << " " << f << " " << f1 << " " << radius << " " << end_to_end_length
-            << " " << iter << " " << total_iters << " " << meta_data[4] << " ";
+            << " " << iter << " " << total_iters << endl;
 }
 
 
@@ -133,24 +128,10 @@ void world::setRodStepper() {
     // End of rod setup
 
     // set up the time stepper
-    stepper = new timeStepper(*rod, hessian);
+    stepper = new timeStepper(*rod);
     totalForce = stepper->getForce();
     ls_nodes = new double[rod->ndof];
-
-    // Depending on contact hessian inclusion, use different solver in timeStepper.cpp
-    if (contact_mode == 0) {
-        meta_data[5] = 0;
-        hessian = 0;
-        dx = stepper->getdx_nohess();
-        cout << "============================== IMC NO HESSIAN CONTACT ALGORITHM ============================" << endl;
-    } else if (contact_mode == 1) {
-        meta_data[5] = 1;
-        hessian = 1;
-        dx = stepper->getdx_hess();
-        cout << "============================== IMC HESSIAN CONTACT ALGORITHM ============================" << endl;
-    } else if (contact_mode == 2) {
-        cout << "============================== IMC HYBRID CONTACT ALGORITHM ============================" << endl;
-    }
+    dx = stepper->dx;
 
     // declare the forces
     m_stretchForce = new elasticStretchingForce(*rod, *stepper);
@@ -159,7 +140,8 @@ void world::setRodStepper() {
     m_inertialForce = new inertialForce(*rod, *stepper);
     m_gravityForce = new externalGravityForce(*rod, *stepper, gVector);
     m_dampingForce = new dampingForce(*rod, *stepper, viscosity);
-    IMC = new collision(*rod, *stepper);
+    m_collisionDetector = new collisionDetector(*rod, *stepper, col_limit);
+    m_contactPotentialIMC = new contactPotentialIMC(*rod, *stepper, *m_collisionDetector, ce_k, friction, mu, vel_tol);
 
     // Allocate every thing to prepare for the first iteration
     rod->updateTimeStep();
@@ -250,6 +232,8 @@ void world::updateTimeStep() {
 
     rod->updateTimeStep();
 
+    printSimData();
+
     currentTime += deltaTime;
 }
 
@@ -288,42 +272,22 @@ void world::newtonDamper() {
 }
 
 
-void world::prepMetaData() {
-    // Message to Python server when a time step has completed
-    if (iter == 0) {
-        meta_data[0] = 1;
-        meta_data[2] = currentTime;
-    } else {
-        meta_data[0] = 0;
-    }
-
-    if (currentTime < wait_time) {
-        // Turn off friction during wait period
-        meta_data[1] = 0;
-    } else {
-        // Turn on friction after wait period if friction is on
-        if (friction)
-            meta_data[1] = 1;
-    }
-
-    // Switch to hessian version if unable to converge
-    if (contact_mode == 2) {
-        if (iter < limit) {
-            meta_data[5] = 0;
-            hessian = 0;
-            dx = stepper->getdx_nohess();
-        } else {
-            meta_data[5] = 1;
-            hessian = 1;
-            dx = stepper->getdx_hess();
-        }
-    }
+void world::printSimData() {
+    printf("time: %.4f | iters: %i | con: %i | min_dist: %.6f | k: %.3e | fric: %i\n",
+           currentTime, iter,
+           m_collisionDetector->num_collisions,
+           m_collisionDetector->min_dist,
+           m_contactPotentialIMC->contact_stiffness,
+           friction);
 }
+
 
 void world::newtonMethod(bool &solved) {
     double normf = forceTol * 10.0;
     double normf0 = 0;
     iter = 0;
+
+    m_collisionDetector->detectCollisions();
 
     while (solved == false) {
         rod->prepareForIteration();
@@ -349,13 +313,11 @@ void world::newtonMethod(bool &solved) {
         m_dampingForce->computeFd();
         m_dampingForce->computeJd();
 
-        prepMetaData();
+        if (iter == 0) {
+            m_contactPotentialIMC->updateContactStiffness();
+        }
 
-        IMC->preparePythonSharedMemory(iter);
-        IMC->computeFc();
-        if (hessian) IMC->computeJc();
-
-        if (!line_search) newtonDamper();
+        m_contactPotentialIMC->computeFcJc(currentTime == 0);
 
         // Compute norm of the force equations.
         normf = 0;
@@ -374,12 +336,15 @@ void world::newtonMethod(bool &solved) {
             iter++;
             if (pulling())
                 total_iters++;
-            meta_data[3] = iter;
         }
 
         if (solved == false) {
             stepper->integrator(); // Solve equations of motion
-            if (line_search) alpha = linesearch();
+            if (line_search) {
+                lineSearch();
+            } else {
+                newtonDamper();
+            }
             rod->updateNewtonX(dx, alpha); // new q = old q + Delta q
             iter++;
             if (pulling())
@@ -389,7 +354,6 @@ void world::newtonMethod(bool &solved) {
         // Exit if unable to converge
         if (iter > maxIter) {
             cout << "No convergence after " << maxIter << " iterations" << endl;
-            kill(pid, SIGTERM); // kill child before exiting
             exit(1);
         }
     }
@@ -416,11 +380,10 @@ double world::getCurrentTime() {
     return currentTime;
 }
 
-//line search algorithm
-double world::linesearch() {
+void world::lineSearch() {
     // store current x
     rod->xold = rod->x;
-    //Initialize a interval for optimal learning rate alpha
+    // Initialize an interval for optimal learning rate alpha
     double amax = 2;
     double amin = 1e-3;
     double al = 0;
@@ -435,7 +398,6 @@ double world::linesearch() {
     bool success = false;
     double m2 = 0.9;
     double m1 = 0.1;
-//    double m1 = 0.0;
     int iter_l = 0;
     while (!success) {
         rod->x = rod->xold;
@@ -452,9 +414,7 @@ double world::linesearch() {
         m_twistingForce->computeFt();
         m_gravityForce->computeFg();
         m_dampingForce->computeFd();
-        meta_data[0] = 0;  // disable printing
-        IMC->preparePythonSharedMemory(1);
-        IMC->computeFc();
+        m_contactPotentialIMC->computeFc(currentTime == 0);
 
         double q = 0.5 * pow(stepper->Force.norm(), 2);
 
@@ -487,6 +447,5 @@ double world::linesearch() {
     }
     rod->x = rod->xold;
 
-
-    return a;
+    alpha = a;
 }

@@ -1,6 +1,6 @@
 #include "timeStepper.h"
 
-timeStepper::timeStepper(elasticRod &m_rod, int &m_hessian)
+timeStepper::timeStepper(elasticRod &m_rod)
 {
     rod = &m_rod;
     kl = 10; // lower diagonals
@@ -16,7 +16,6 @@ timeStepper::timeStepper(elasticRod &m_rod, int &m_hessian)
     nrhs = 1;
     ipiv = new int[freeDOF];
     info = 0;
-    hessian = &m_hessian;
 }
 
 timeStepper::~timeStepper()
@@ -32,16 +31,6 @@ double* timeStepper::getForce()
 double* timeStepper::getJacobian()
 {
     return jacobian;
-}
-
-double* timeStepper::getdx_hess()
-{
-    return dx;
-}
-
-double* timeStepper::getdx_nohess()
-{
-    return totalForce;
 }
 
 void timeStepper::addForce(int ind, double p)
@@ -314,10 +303,5 @@ void timeStepper::pardisoSolver()
 
 void timeStepper::integrator()
 {
-    if (*hessian) {
-        pardisoSolver();
-    }
-    else {
-        dgbsv_(&freeDOF, &kl, &ku, &nrhs, jacobian, &NUMROWS, ipiv, totalForce, &ldb, &info);
-    }
+    pardisoSolver();
 }

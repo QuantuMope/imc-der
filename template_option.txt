@@ -22,13 +22,9 @@ releaseTime        0
 pullSpeed          0.006
 deltaTime          1e-2
 friction           1
-mu_k               0.10
+mu                 0.30
 velTol             1000
-col                0.15
-con                0.0001
-ce_k               50
-S                  625
+col                0.00025
+ce_k               31250
 knotConfig         n1
 lineSearch         0
-contactMode        1
-limit              20

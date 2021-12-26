@@ -60,19 +60,14 @@ private:
     double wait_time;
     double pull_speed;
     int friction;
-    int port;
     double col;
-    double con;
     double ce_k;
-    double mu_k;
-    double S;
-    int limit;
-    int contact_mode;
+    double mu;
+    double vel_tol;
     int record_nodes;
     double record_nodes_start;
     double record_nodes_end;
     string knot_config;
-    int vel_tol;
     int line_search;
 };
 

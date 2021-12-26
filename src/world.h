@@ -15,15 +15,13 @@
 
 // include external force
 #include "dampingForce.h"
+#include "contactPotentialIMC.h"
 
 // include time stepper
 #include "timeStepper.h"
 
 // include input file and option
 #include "setInput.h"
-
-//include collision checker
-#include "collision.h"
 
 extern double* meta_data;
 
@@ -70,10 +68,11 @@ private:
     double release_time;
     double wait_time;
     double pull_speed;
+    double col_limit;
+    double ce_k;
+    double mu;
+    double vel_tol;
     int friction;
-    int limit;
-    int contact_mode;
-    int hessian;
     int line_search;
     string knot_config;
     double alpha;
@@ -105,7 +104,8 @@ private:
     inertialForce *m_inertialForce;
     externalGravityForce *m_gravityForce;
     dampingForce *m_dampingForce;
-    collision *IMC;
+    collisionDetector *m_collisionDetector;
+    contactPotentialIMC *m_contactPotentialIMC;
 
     int iter;
     int total_iters;
@@ -118,9 +118,10 @@ private:
     void updateCons();
 
     void newtonMethod(bool &solved);
+    void printSimData();
     void newtonDamper();
     void calculateForce();
-    void prepMetaData();
+    void lineSearch();
 
     bool render; // should the OpenGL rendering be included?
     bool saveData; // should data be written to a file?
@@ -130,7 +131,6 @@ private:
     Vector3d gravity;
     Vector3d inertial;
     Vector3d dampingF;
-    double linesearch();
 
 };
 
