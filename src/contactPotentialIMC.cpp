@@ -1,8 +1,4 @@
 #include "contactPotentialIMC.h"
-#include <fstream>
-
-using namespace SymEngine;
-using namespace std;
 
 
 contactPotentialIMC::contactPotentialIMC(elasticRod &m_rod, timeStepper &m_stepper, collisionDetector &m_col_detector,
@@ -12,7 +8,8 @@ contactPotentialIMC::contactPotentialIMC(elasticRod &m_rod, timeStepper &m_stepp
     col_detector = &m_col_detector;
 
     ce_k = m_ce_k;
-    h2 = rod->rodRadius * 2;
+    scale = 1 / rod->rodRadius;
+    h2 = scale * rod->rodRadius * 2;
     friction = m_friction;
     mu = m_mu;
     vel_tol = m_vel_tol;
@@ -32,33 +29,11 @@ contactPotentialIMC::contactPotentialIMC(elasticRod &m_rod, timeStepper &m_stepp
     friction_partials_dfr_dfc.setZero();
     friction_jacobian.setZero();
 
-    generatePotentialFunctions();
-}
-
-
-void contactPotentialIMC::approx_fixbound(const RCP<const Basic> &input, RCP<const Basic> &result, const double &m_k) {
-    const RCP<const RealDouble> k = real_double(m_k);
-    auto first_term = log(add(one, exp(mul(k, input))));
-    auto second_term = log(add(one, exp(mul(k, sub(input, one)))));
-    result = mul(div(one, k), sub(first_term, second_term));
-}
-
-
-void contactPotentialIMC::approx_boxcar(const RCP<const Basic> &input, RCP<const Basic> &result, const double &m_k) {
-    const RCP<const RealDouble> k = real_double(m_k);
-    auto first_term = div(one, add(one, exp(mul(mul(integer(-1), k), input))));
-    auto second_term = div(one, add(one, exp(mul(mul(integer(-1), k), sub(input, one)))));
-    result = sub(first_term, second_term);
-}
-
-
-// For some reason SymEngine doesn't have this implemented X_X
-void contactPotentialIMC::subtract_matrix(const DenseMatrix &A, const DenseMatrix &B, DenseMatrix &C) {
-    assert((A.nrows() == B.nrows()) && (A.ncols() == B.ncols()));
-    for (unsigned i=0; i < A.nrows(); i++) {
-        for (unsigned j=0; j < A.ncols(); j++) {
-            C.set(i, j, sub(A.get(i, j), B.get(i, j)));
-        }
+    sym_eqs = new symbolicEquations();
+    sym_eqs->generateContactPotentialFunctions();
+    sym_eqs->generateParallelContactPotentialFunctions();
+    if (friction) {
+        sym_eqs->generateFrictionJacobianFunctions();
     }
 }
 
@@ -96,10 +71,10 @@ void contactPotentialIMC::updateContactStiffness() {
 
 
 void contactPotentialIMC::prepContactInput(int edge1, int edge2) {
-    Vector3d x1s = rod->getVertex(edge1);
-    Vector3d x1e = rod->getVertex(edge1+1);
-    Vector3d x2s = rod->getVertex(edge2);
-    Vector3d x2e = rod->getVertex(edge2+1);
+    Vector3d x1s = scale * rod->getVertex(edge1);
+    Vector3d x1e = scale * rod->getVertex(edge1+1);
+    Vector3d x2s = scale * rod->getVertex(edge2);
+    Vector3d x2e = scale * rod->getVertex(edge2+1);
 
     contact_input[0] = x1s(0);
     contact_input[1] = x1s(1);
@@ -165,21 +140,95 @@ void contactPotentialIMC::prepFrictionInput(int edge1, int edge2) {
 }
 
 
+void contactPotentialIMC::computeFriction(int edge1, int edge2) {
+    Vector3d x1s = rod->getVertex(edge1);
+    Vector3d x1e = rod->getVertex(edge1+1);
+    Vector3d x2s = rod->getVertex(edge2);
+    Vector3d x2e = rod->getVertex(edge2+1);
+    Vector3d x1s0 = rod->getPreVertex(edge1);
+    Vector3d x1e0 = rod->getPreVertex(edge1+1);
+    Vector3d x2s0 = rod->getPreVertex(edge2);
+    Vector3d x2e0 = rod->getPreVertex(edge2+1);
+    Vector3d f1s = contact_gradient(seq(0, 2));
+    Vector3d f1e = contact_gradient(seq(3, 5));
+    Vector3d f2s = contact_gradient(seq(6, 8));
+    Vector3d f2e = contact_gradient(seq(9, 11));
+
+    double f1s_n = f1s.norm();
+    double f2s_n = f2s.norm();
+
+    double fn = (f1s + f1e).norm();
+
+    double ffr_val = fn * mu;
+
+    double t1 = f1s_n / fn;
+    double u1 = f2s_n / fn;
+
+    if (t1 > 1) t1 = 1;
+    if (t1 < 0) t1 = 0;
+    if (u1 > 1) u1 = 1;
+    if (u1 < 0) u1 = 0;
+
+    double t2 = 1 - t1;
+    double u2 = 1 - u1;
+
+    Vector3d v1s = x1s - x1s0;
+    Vector3d v1e = x1e - x1e0;
+    Vector3d v2s = x2s - x2s0;
+    Vector3d v2e = x2e - x2e0;
+
+    Vector3d v1 = t1 * v1s + t2 * v1e;
+    Vector3d v2 = u1 * v2s + u2 * v2e;
+    Vector3d v_rel = v1 - v2;
+
+    Vector3d norm = (f1s + f1e) / fn;
+    Vector3d tv_rel = v_rel - v_rel.dot(norm) * norm;
+    double tv_rel_n = tv_rel.norm();
+    Vector3d tv_rel_u = tv_rel / tv_rel_n;
+
+    double tv_rel_n_scaled = tv_rel_n * (1 / rod->dt) * vel_tol;
+    double heaviside = (2 / (1 + exp(-tv_rel_n_scaled))) - 1;
+
+    Vector3d ffr_e = heaviside * tv_rel_u * ffr_val;
+
+    friction_forces(seq(0, 2)) = t1 * ffr_e;
+    friction_forces(seq(3, 5)) = t2 * ffr_e;
+    friction_forces(seq(6, 8)) = -u1 * ffr_e;
+    friction_forces(seq(9, 11)) = -u2 * ffr_e;
+}
+
+
 void contactPotentialIMC::computeFc(bool first_iter) {
     int edge1, edge2;
+    col_detector->detectParallelCases();
     for (int i = 0; i < col_detector->num_collisions; i++) {
         edge1 = col_detector->candidate_ids(i, 0);
         edge2 = col_detector->candidate_ids(i, 1);
         prepContactInput(edge1, edge2);
 
-        contact_potential_gradient_func.call(contact_gradient.data(), contact_input.data());
-
+        switch (col_detector->parallel_cases[i]) {
+            case NOPA:
+                sym_eqs->contact_potential_grad_func.call(contact_gradient.data(), contact_input.data());
+                break;
+            case ACBD:
+                sym_eqs->parallel_ACBD_case_grad_func.call(contact_gradient.data(), contact_input.data());
+                break;
+            case ADBC:
+                sym_eqs->parallel_ADBC_case_grad_func.call(contact_gradient.data(), contact_input.data());
+                break;
+            case CADB:
+                sym_eqs->parallel_CADB_case_grad_func.call(contact_gradient.data(), contact_input.data());
+                break;
+            case DACB:
+                sym_eqs->parallel_DACB_case_grad_func.call(contact_gradient.data(), contact_input.data());
+                break;
+        }
         contact_gradient *= contact_stiffness;
 
         if (friction && !first_iter) {
             prepFrictionInput(edge1, edge2);
 
-            friction_force_func.call(friction_forces.data(), friction_input.data());
+            computeFriction(edge1, edge2);
 
             contact_gradient += friction_forces;
         }
@@ -198,23 +247,45 @@ void contactPotentialIMC::computeFc(bool first_iter) {
 
 void contactPotentialIMC::computeFcJc(bool first_iter) {
     int edge1, edge2;
+    col_detector->detectParallelCases();
     for (int i = 0; i < col_detector->num_collisions; i++) {
         edge1 = col_detector->candidate_ids(i, 0);
         edge2 = col_detector->candidate_ids(i, 1);
         prepContactInput(edge1, edge2);
 
-        contact_potential_gradient_func.call(contact_gradient.data(), contact_input.data());
-        contact_potential_hessian_func.call(contact_hessian.data(), contact_input.data());
+        switch (col_detector->parallel_cases[i]) {
+            case NOPA:
+                sym_eqs->contact_potential_grad_func.call(contact_gradient.data(), contact_input.data());
+                sym_eqs->contact_potential_hess_func.call(contact_hessian.data(), contact_input.data());
+                break;
+            case ACBD:
+                sym_eqs->parallel_ACBD_case_grad_func.call(contact_gradient.data(), contact_input.data());
+                sym_eqs->parallel_ACBD_case_hess_func.call(contact_hessian.data(), contact_input.data());
+                break;
+            case ADBC:
+                sym_eqs->parallel_ADBC_case_grad_func.call(contact_gradient.data(), contact_input.data());
+                sym_eqs->parallel_ADBC_case_hess_func.call(contact_hessian.data(), contact_input.data());
+                break;
+            case CADB:
+                sym_eqs->parallel_CADB_case_grad_func.call(contact_gradient.data(), contact_input.data());
+                sym_eqs->parallel_CADB_case_hess_func.call(contact_hessian.data(), contact_input.data());
+                break;
+            case DACB:
+                sym_eqs->parallel_DACB_case_grad_func.call(contact_gradient.data(), contact_input.data());
+                sym_eqs->parallel_DACB_case_hess_func.call(contact_hessian.data(), contact_input.data());
+                break;
+        }
 
         contact_gradient *= contact_stiffness;
-        contact_hessian *= contact_stiffness;
+        contact_hessian *= contact_stiffness * scale;
 
         if (friction && !first_iter) {
             prepFrictionInput(edge1, edge2);
 
-            friction_force_func.call(friction_forces.data(), friction_input.data());
-            friction_partials_dfr_dx_func.call(friction_partials_dfr_dx.data(), friction_input.data());
-            friction_partials_dfr_dfc_func.call(friction_partials_dfr_dfc.data(), friction_input.data());
+            computeFriction(edge1, edge2);
+
+            sym_eqs->friction_partials_dfr_dx_func.call(friction_partials_dfr_dx.data(), friction_input.data());
+            sym_eqs->friction_partials_dfr_dfc_func.call(friction_partials_dfr_dfc.data(), friction_input.data());
 
             // Chain ruling to get complete friction Jacobian
             friction_jacobian = friction_partials_dfr_dx + friction_partials_dfr_dfc.transpose() * contact_hessian;
@@ -249,308 +320,4 @@ void contactPotentialIMC::computeFcJc(bool first_iter) {
             }
         }
     }
-}
-
-
-void contactPotentialIMC::generatePotentialFunctions() {
-    auto x1s_x = symbol("x1s_x");
-    auto x1s_y = symbol("x1s_y");
-    auto x1s_z = symbol("x1s_z");
-    auto x1e_x = symbol("x1e_x");
-    auto x1e_y = symbol("x1e_y");
-    auto x1e_z = symbol("x1e_z");
-    auto x2s_x = symbol("x2s_x");
-    auto x2s_y = symbol("x2s_y");
-    auto x2s_z = symbol("x2s_z");
-    auto x2e_x = symbol("x2e_x");
-    auto x2e_y = symbol("x2e_y");
-    auto x2e_z = symbol("x2e_z");
-
-    vec_basic nodes_vec {x1s_x, x1s_y, x1s_z,
-                         x1e_x, x1e_y, x1e_z,
-                         x2s_x, x2s_y, x2s_z,
-                         x2e_x, x2e_y, x2e_z};
-    DenseMatrix nodes {nodes_vec};
-
-    auto ce_k = symbol("ce_k");
-    auto h2 = symbol("h2");
-
-    vec_basic func_inputs(nodes_vec);
-    func_inputs.push_back(ce_k);
-    func_inputs.push_back(h2);
-
-    // Construct Symbolic Arrays for each Node
-    DenseMatrix x1s({x1s_x, x1s_y, x1s_z});
-    DenseMatrix x1e({x1e_x, x1e_y, x1e_z});
-    DenseMatrix x2s({x2s_x, x2s_y, x2s_z});
-    DenseMatrix x2e({x2e_x, x2e_y, x2e_z});
-
-    int num_rows = x1s.nrows();
-    int num_cols = x1s.ncols();
-
-    DenseMatrix e1(num_rows, num_cols);
-    DenseMatrix e2(num_rows, num_cols);
-    DenseMatrix e12(num_rows, num_cols);
-
-    subtract_matrix(x1e, x1s, e1);
-    subtract_matrix(x2e, x2s, e2);
-    subtract_matrix(x2s, x1s, e12);
-
-    DenseMatrix e1_squared(num_rows, num_cols);
-    DenseMatrix e2_squared(num_rows, num_cols);
-    DenseMatrix e1_e12(num_rows, num_cols);
-    DenseMatrix e2_e12(num_rows, num_cols);
-    DenseMatrix e1_e2(num_rows, num_cols);
-    e1.elementwise_mul_matrix(e1, e1_squared);
-    e2.elementwise_mul_matrix(e2, e2_squared);
-    e1.elementwise_mul_matrix(e12, e1_e12);
-    e2.elementwise_mul_matrix(e12, e2_e12);
-    e1.elementwise_mul_matrix(e2, e1_e2);
-
-    auto D1 = add(e1_squared.as_vec_basic());
-    auto D2 = add(e2_squared.as_vec_basic());
-    auto S1 = add(e1_e12.as_vec_basic());
-    auto S2 = add(e2_e12.as_vec_basic());
-    auto R = add(e1_e2.as_vec_basic());
-
-    auto den = sub(mul(D1, D2), pow(R, 2));
-
-    auto t1 = div(sub(mul(S1, D2), mul(S2, R)), den);
-
-    RCP<const Basic> t2;
-    approx_fixbound(t1, t2, 50.0);
-
-    auto u1 = div(sub(mul(t2, R), S2), D2);
-
-    RCP<const Basic> u2;
-    approx_fixbound(u1, u2, 50.0);
-
-    RCP<const Basic> conditional;
-    approx_boxcar(u1, conditional, 50.0);
-
-    auto left_cond = mul(sub(one, conditional), div(add(mul(u2, R), S1), D1));
-    auto right_cond = mul(conditional, t2);
-    auto t3 = add(left_cond, right_cond);
-
-    RCP<const Basic> t4;
-    approx_fixbound(t3, t4, 50.0);
-
-    DenseMatrix c1(num_rows, num_cols);
-    DenseMatrix c2(num_rows, num_cols);
-
-    e1.mul_scalar(t4, c1);
-    e2.mul_scalar(u2, c2);
-
-    DenseMatrix dist_xyz(num_rows, num_cols);
-    subtract_matrix(c1, c2, dist_xyz);
-    subtract_matrix(dist_xyz, e12, dist_xyz);
-
-    DenseMatrix dist_xyz_squared(num_rows, num_cols);
-    dist_xyz.elementwise_mul_matrix(dist_xyz, dist_xyz_squared);
-
-    RCP<const Basic> dist = pow(add(dist_xyz_squared.as_vec_basic()), 0.5);
-
-    RCP<const Basic> E = mul(div(one, ce_k), log(add(one, exp(mul(ce_k, sub(h2, dist))))));
-
-    DenseMatrix contact_potential{{E}};
-
-    DenseMatrix contact_potential_gradient(1, 12);
-
-    jacobian(contact_potential, nodes, contact_potential_gradient);
-
-    DenseMatrix contact_potential_hessian(12, 12);
-    jacobian(contact_potential_gradient, nodes, contact_potential_hessian);
-
-    // Common subexpression elimination (CSE) is extremely important for efficiency
-    bool symbolic_cse = true;
-    int opt_level = 3;
-
-    contact_potential_gradient_func.init(func_inputs, contact_potential_gradient.as_vec_basic(), symbolic_cse, opt_level);
-    contact_potential_hessian_func.init(func_inputs, contact_potential_hessian.as_vec_basic(), symbolic_cse, opt_level);
-
-    if (friction) {
-        auto x1s_x0 = symbol("x1s_x0");
-        auto x1s_y0 = symbol("x1s_y0");
-        auto x1s_z0 = symbol("x1s_z0");
-        auto x1e_x0 = symbol("x1e_x0");
-        auto x1e_y0 = symbol("x1e_y0");
-        auto x1e_z0 = symbol("x1e_z0");
-        auto x2s_x0 = symbol("x2s_x0");
-        auto x2s_y0 = symbol("x2s_y0");
-        auto x2s_z0 = symbol("x2s_z0");
-        auto x2e_x0 = symbol("x2e_x0");
-        auto x2e_y0 = symbol("x2e_y0");
-        auto x2e_z0 = symbol("x2e_z0");
-        auto f1s_x = symbol("f1s_x");
-        auto f1s_y = symbol("f1s_y");
-        auto f1s_z = symbol("f1s_z");
-        auto f1e_x = symbol("f1e_x");
-        auto f1e_y = symbol("f1e_y");
-        auto f1e_z = symbol("f1e_z");
-        auto f2s_x = symbol("f2s_x");
-        auto f2s_y = symbol("f2s_y");
-        auto f2s_z = symbol("f2s_z");
-        auto f2e_x = symbol("f2e_x");
-        auto f2e_y = symbol("f2e_y");
-        auto f2e_z = symbol("f2e_z");
-        auto mu = symbol("mu");
-        auto dt = symbol("dt");
-        auto vel_tol = symbol("vel_tol");
-
-        // Construct Symbolic Arrays
-        DenseMatrix x1s_0({x1s_x0, x1s_y0, x1s_z0});
-        DenseMatrix x1e_0({x1e_x0, x1e_y0, x1e_z0});
-        DenseMatrix x2s_0({x2s_x0, x2s_y0, x2s_z0});
-        DenseMatrix x2e_0({x2e_x0, x2e_y0, x2e_z0});
-        DenseMatrix f1s({f1s_x, f1s_y, f1s_z});
-        DenseMatrix f1e({f1e_x, f1e_y, f1e_z});
-        DenseMatrix f2s({f2s_x, f2s_y, f2s_z});
-        DenseMatrix f2e({f2e_x, f2e_y, f2e_z});
-        DenseMatrix f1(num_rows, num_cols);
-        DenseMatrix f2(num_rows, num_cols);
-        f1s.add_matrix(f1e, f1);
-        f2s.add_matrix(f2e, f2);
-
-        vec_basic ffr_input {x1s_x, x1s_y, x1s_z,
-                             x1e_x, x1e_y, x1e_z,
-                             x2s_x, x2s_y, x2s_z,
-                             x2e_x, x2e_y, x2e_z,
-                             x1s_x0, x1s_y0, x1s_z0,
-                             x1e_x0, x1e_y0, x1e_z0,
-                             x2s_x0, x2s_y0, x2s_z0,
-                             x2e_x0, x2e_y0, x2e_z0,
-                             f1s_x, f1s_y, f1s_z,
-                             f1e_x, f1e_y, f1e_z,
-                             f2s_x, f2s_y, f2s_z,
-                             f2e_x, f2e_y, f2e_z,
-                             mu, dt, vel_tol};
-
-        vec_basic cforces {f1s_x, f1s_y, f1s_z,
-                           f1e_x, f1e_y, f1e_z,
-                           f2s_x, f2s_y, f2s_z,
-                           f2e_x, f2e_y, f2e_z};
-
-        DenseMatrix f1s_squared(num_rows, num_cols);
-        DenseMatrix f1e_squared(num_rows, num_cols);
-        DenseMatrix f2s_squared(num_rows, num_cols);
-        DenseMatrix f2e_squared(num_rows, num_cols);
-        DenseMatrix f1_squared(num_rows, num_cols);
-        DenseMatrix f2_squared(num_rows, num_cols);
-        f1s.elementwise_mul_matrix(f1s, f1s_squared);
-        f1e.elementwise_mul_matrix(f1e, f1e_squared);
-        f2s.elementwise_mul_matrix(f2s, f2s_squared);
-        f2e.elementwise_mul_matrix(f2e, f2e_squared);
-        f1.elementwise_mul_matrix(f1, f1_squared);
-        f2.elementwise_mul_matrix(f2, f2_squared);
-
-        RCP<const Basic> f1s_n = pow(add(f1s_squared.as_vec_basic()), 0.5);
-        RCP<const Basic> f1e_n = pow(add(f1e_squared.as_vec_basic()), 0.5);
-        RCP<const Basic> f2s_n = pow(add(f2s_squared.as_vec_basic()), 0.5);
-        RCP<const Basic> f2e_n = pow(add(f2e_squared.as_vec_basic()), 0.5);
-        RCP<const Basic> f1_n = pow(add(f1_squared.as_vec_basic()), 0.5);
-        RCP<const Basic> f2_n = pow(add(f2_squared.as_vec_basic()), 0.5);
-
-        RCP<const Basic> t1 = div(f1s_n, f1_n);
-        RCP<const Basic> t2 = div(f1e_n, f1_n);
-        RCP<const Basic> u1 = div(f2s_n, f2_n);
-        RCP<const Basic> u2 = div(f2e_n, f2_n);
-
-        DenseMatrix f1_nu(num_rows, num_cols);
-        DenseMatrix f2_nu(num_rows, num_cols);
-        f1.mul_scalar(div(one, f1_n), f1_nu);
-        f2.mul_scalar(div(one, f2_n), f2_nu);
-
-        DenseMatrix v1s(num_rows, num_cols);
-        DenseMatrix v1e(num_rows, num_cols);
-        DenseMatrix v2s(num_rows, num_cols);
-        DenseMatrix v2e(num_rows, num_cols);
-        subtract_matrix(x1s, x1s_0, v1s);
-        subtract_matrix(x1e, x1e_0, v1e);
-        subtract_matrix(x2s, x2s_0, v2s);
-        subtract_matrix(x2e, x2e_0, v2e);
-
-        DenseMatrix v1s_r(num_rows, num_cols);
-        DenseMatrix v1e_r(num_rows, num_cols);
-        DenseMatrix v2s_r(num_rows, num_cols);
-        DenseMatrix v2e_r(num_rows, num_cols);
-        v1s.mul_scalar(t1, v1s_r);
-        v1e.mul_scalar(t2, v1e_r);
-        v2s.mul_scalar(u1, v2s_r);
-        v2e.mul_scalar(u2, v2e_r);
-
-        DenseMatrix v1(num_rows, num_cols);
-        DenseMatrix v2(num_rows, num_cols);
-        v1s_r.add_matrix(v1e_r, v1);
-        v2s_r.add_matrix(v2e_r, v2);
-
-        DenseMatrix v_rel1(num_rows, num_cols);
-        DenseMatrix v_rel2(num_rows, num_cols);
-        subtract_matrix(v1, v2, v_rel1);
-        subtract_matrix(v2, v1, v_rel2);
-
-        // Compute tangent velocity of edge 1
-        DenseMatrix tv_rel1_dot_vec(num_rows, num_cols);
-        v_rel1.elementwise_mul_matrix(f1_nu, tv_rel1_dot_vec);
-        RCP<const Basic> tv_rel1_dot = add(tv_rel1_dot_vec.as_vec_basic());
-        DenseMatrix tv_rel1_component(num_rows, num_cols);
-        f1_nu.mul_scalar(tv_rel1_dot, tv_rel1_component);
-        DenseMatrix tv_rel1(num_rows, num_cols);
-        subtract_matrix(v_rel1, tv_rel1_component, tv_rel1);
-        DenseMatrix tv_rel1_squared(num_rows, num_cols);
-        tv_rel1.elementwise_mul_matrix(tv_rel1, tv_rel1_squared);
-        RCP<const Basic> tv_rel1_n = pow(add(tv_rel1_squared.as_vec_basic()), 0.5);
-        DenseMatrix tv_rel1_u(num_rows, num_cols);
-        tv_rel1.mul_scalar(div(one, tv_rel1_n), tv_rel1_u);
-
-        // Compute tangent velocity of edge 2
-        DenseMatrix tv_rel2_dot_vec(num_rows, num_cols);
-        v_rel2.elementwise_mul_matrix(f2_nu, tv_rel2_dot_vec);
-        RCP<const Basic> tv_rel2_dot = add(tv_rel2_dot_vec.as_vec_basic());
-        DenseMatrix tv_rel2_component(num_rows, num_cols);
-        f2_nu.mul_scalar(tv_rel2_dot, tv_rel2_component);
-        DenseMatrix tv_rel2(num_rows, num_cols);
-        subtract_matrix(v_rel2, tv_rel2_component, tv_rel2);
-        DenseMatrix tv_rel2_squared(num_rows, num_cols);
-        tv_rel2.elementwise_mul_matrix(tv_rel2, tv_rel2_squared);
-        RCP<const Basic> tv_rel2_n = pow(add(tv_rel2_squared.as_vec_basic()), 0.5);
-        DenseMatrix tv_rel2_u(num_rows, num_cols);
-        tv_rel2.mul_scalar(div(one, tv_rel2_n), tv_rel2_u);
-
-        RCP<const Basic> tv_rel1_n_scaled = mul(mul(div(one, dt), vel_tol), tv_rel1_n);
-        RCP<const Basic> tv_rel2_n_scaled = mul(mul(div(one, dt), vel_tol), tv_rel2_n);
-
-        RCP<const Basic> heaviside1 = sub(div(integer(2), add(one, exp(mul(integer(-1), tv_rel1_n_scaled)))), one);
-        RCP<const Basic> heaviside2 = sub(div(integer(2), add(one, exp(mul(integer(-1), tv_rel2_n_scaled)))), one);
-
-        RCP<const Basic> ffr1_scalar = mul(mul(heaviside1, mu), f1_n);
-        RCP<const Basic> ffr2_scalar = mul(mul(heaviside2, mu), f2_n);
-
-        DenseMatrix ffr1(num_rows, num_cols);
-        DenseMatrix ffr2(num_rows, num_cols);
-        tv_rel1_u.mul_scalar(ffr1_scalar, ffr1);
-        tv_rel2_u.mul_scalar(ffr2_scalar, ffr2);
-
-        DenseMatrix ffr1s(num_rows, num_cols);
-        DenseMatrix ffr1e(num_rows, num_cols);
-        DenseMatrix ffr2s(num_rows, num_cols);
-        DenseMatrix ffr2e(num_rows, num_cols);
-        ffr1.mul_scalar(t1, ffr1s);
-        ffr1.mul_scalar(t2, ffr1e);
-        ffr2.mul_scalar(u1, ffr2s);
-        ffr2.mul_scalar(u2, ffr2e);
-
-        DenseMatrix ffr_vec({ffr1s.get(0, 0), ffr1s.get(1, 0), ffr1s.get(2, 0),
-                             ffr1e.get(0, 0), ffr1e.get(1, 0), ffr1e.get(2, 0),
-                             ffr2s.get(0, 0), ffr2s.get(1, 0), ffr2s.get(2, 0),
-                             ffr2e.get(0, 0), ffr2e.get(1, 0), ffr2e.get(2, 0)});
-
-        DenseMatrix friction_partial_dfr_dx(12, 12);
-        DenseMatrix friction_partial_dfr_dfc(12, 12);
-        jacobian(ffr_vec, nodes, friction_partial_dfr_dx);
-        jacobian(ffr_vec, cforces, friction_partial_dfr_dfc);
-
-        friction_force_func.init(ffr_input, ffr_vec.as_vec_basic(), symbolic_cse, opt_level);
-        friction_partials_dfr_dx_func.init(ffr_input, friction_partial_dfr_dx.as_vec_basic(), symbolic_cse, opt_level);
-        friction_partials_dfr_dfc_func.init(ffr_input, friction_partial_dfr_dfc.as_vec_basic(), symbolic_cse, opt_level);
-    };
 }

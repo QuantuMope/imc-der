@@ -29,14 +29,15 @@ add_executable(simDER
         src/inertialForce.cpp
         src/timeStepper.cpp
         src/setInput.cpp
+        src/symbolicEquations.cpp
         src/collisionDetector.cpp
         src/contactPotentialIMC.cpp)
 
 target_link_libraries(simDER
         ${SYMENGINE_LIBRARIES}
-        Eigen3::Eigen
         ${OPENGL_LIBRARIES}
         ${GLUT_LIBRARY}
+        Eigen3::Eigen
         pardiso600-GNU800-X86-64
         lapack
         gfortran

@@ -1,9 +1,8 @@
 ## [Implicit Contact Model (IMC)](https://asmedigitalcollection.asme.org/appliedmechanics/article/88/5/051010/1099667/Implicit-Contact-Model-for-Discrete-Elastic-Rods)
 
 Contact model for 3D elastic rod simulations. Uses [Discrete Elastic Rod (DER)](http://www.cs.columbia.edu/cg/pdfs/143-rods.pdf) framework and incorporates contact and friction. Formulates a contact potential as a twice differentiable analytical expression through smooth approximations 
-and uses the subsequent energy gradient (forces) and Hessian (force Jacobian) to simulate contact and friction. The published method can be found [here](misc/imc_paper.pdf) along with a [graphical abstract](https://www.youtube.com/watch?v=yq4-m0G0D4g&feature=youtu.be). Simulation examples using IMC to resolve contact and friction can be seen below in Figure 1.
+and uses the subsequent energy gradient (forces) and Hessian (force Jacobian) to simulate contact and friction. Simulation examples using IMC to resolve contact and friction can be seen below in Figure 1.
 
-**IMPORTANT NOTE!!!**: Recently an error was found in the Hessian computation for IMC! Performance of the fully implicit version has improved drastically and time steps much larger than the ones [reported](misc/imc_paper.pdf) are now possible. It is now much more preferable to use the fully implicit formulation over the hybrid algorithm.
 
 <p align="center">
 <img src="images/knot_tying.png" alt>
@@ -13,46 +12,67 @@ and uses the subsequent energy gradient (forces) and Hessian (force Jacobian) to
 
 ***
 
-## How to Use
-Note that IMC is currently implemented purely in Python for ease of prototyping while the DER framework is implemented in C++. The performance gap between Python and C++ is mitigated by using almost purely numpy operations compiled through [numba](https://numba.pydata.org/) as well as symbolic differentation through [symengine](https://github.com/symengine/symengine) and function generation using LLVM.
+### Formulation Updates since the Published Paper
+- Explicit and hybrid formulations for IMC were removed. After a Hessian chain ruling bug fix, the fully implicit version is by far superior in terms of performance.
+- Friction has been changed to a fully implicit formulation.
 
-All code tested and developed on **Ubuntu 18.04.4 LTS** using **Python 3.6.9** and **C++11**.
 ***
 
+## How to Use
+
 ### Dependencies
-#### Python Dependencies
-Install the following Python dependencies. If Python version is not at least 3.6, do not install the numba library and remove the @njit decorator in ```imc_utils.py```. It is highly recommended to use use Python >= 3.6 to take advantage of numba.
-```bash
-python3 -m pip install numpy symengine numba dill posix_ipc pyzmq 
-```
-#### C++ Dependencies
 Install the following C++ dependencies:
 - [Eigen](http://eigen.tuxfamily.org/index.php?title=Main_Page)
+  - Eigen is used for various linear algebra operations.
+  - IMC is built with Eigen version 3.4.0 which can be downloaded [here](https://gitlab.com/libeigen/eigen/-/releases/3.4.0). After downloading the source code, install through cmake as follows.
+    ```bash
+    cd eigen-3.4.0 && mkdir build && cd build
+    cmake ..
+    sudo make install
+    ```
+- [SymEngine](https://github.com/symengine/symengine)
+  - SymEngine is used for symbolic differentiation and function generation.
+  - Before installing SymEngine, LLVM is required which can be installed through apt.
+    ```bash
+    sudo apt-get install llvm
+    ```
+  - Afterwards, install SymEngine from source using the following commands.
+    ```bash
+    git clone https://github.com/symengine/symengine    
+    cd symengine && mkdir build && cd build
+    cmake -DWITH_LLVM=on ..
+    make -j4
+    sudo make install
+    ```
 - [Pardiso Solver](https://www.pardiso-project.org/)
-- OpenGL
+  - Pardiso is used as a linear system of equations solver for sparse matrices.
+  - Go to https://www.pardiso-project.org/ and click the "Download Pardiso" link. Choose the appropriate license type and fill out the registration form. You will then obtain an email with the download link as well as your license key.
+  - Click the download link in the email and download the appropriate shared library for your system. Currently, we use ```libpardiso600-GNU800-X86-64.so```; if another library version is used, change the library name appropriately in the ```CMakeLists.txt```.
+  - Move the library to a directory where it can be found by cmake.
+    ```bash
+    sudo mv libpardiso600-GNU800-X86-64.so /usr/lib
+    ```
+  - Finally, copy and paste your license key into a text file called ```pardiso.lic``` and place this file into the main directory.
+- [OpenGL / GLUT](https://www.opengl.org/)
+  - OpenGL / GLUT is used for rendering the knot through a simple graphic.
+  - Simply install through apt package manager:
+      ```bash
+    sudo apt-get install libglu1-mesa-dev freeglut3-dev mesa-common-dev
+    ```
 - Lapack (*usually preinstalled on your computer*)
-- [libzmq](https://github.com/zeromq/libzmq)
-- [cppzmq](https://github.com/zeromq/cppzmq)
 
 ***
 ### Compiling
-First, the necessary functions must be generated and stored. Use the following command line argument to
-create the functions for a certain contact energy stiffness ```ce_k``` and scaled contact distance ```h2``` (*two times the radius*).
+After completing all the necessary above steps, clone the source repository of IMC and then build the project through cmake.
 ```bash
-cd src                                     # go to source code directory
-python3 generate_functions.py $ce_k $h2    # a good value is ce_k = 50.0 and h2 = 2.0
-```
-This should only take a few seconds since changing the symbolic differentiation from sympy to symengine. 
-
-Next, you will have to provide a Pardiso license file in the DER directory. This license can be obtained [here](https://www.pardiso-project.org/#download). Make sure all dependencies and locations are properly listed in ```Makefile``` and then compile DER.
-```bash
-cd DER                 # go to the DER directory
-make                   # compile the program
+mkdir build && cd build
+cmake ..
+make -j4
 ```
 
 ***
 
-### Parameters
+### Setting Parameters
 
 All simulation parameters are set through a parameter file ```option.txt```. A template file ```template_option.txt``` is provided that can be used to construct ```option.txt```.
 
@@ -83,18 +103,20 @@ Specifiable parameters are as follows (we use SI units):
 - ```pullSpeed``` - Speed at which to pull and/or loosen each end.
 - ```deltaTime``` - Time step size.
 - ```friction (0 or 1)``` - Flag indicating whether friction will be simulated.
-- ```mu_k``` - Kinetic friction coefficient.
+- ```mu``` - Friction coefficient.
 - ```velTol``` - Velocity tolerance for static friction.
-- ```col``` - Scaled collision limit.
-- ```con``` - Initial contact stiffness.
-- ```ce_k``` - Contact energy curve stiffness (*functions for this value must be pre-generated*).
-- ```S``` - Scaling factor.
-- ```knotConfig``` - File name for the initial knot configuration. Should be a txt file located in ```DER/knot_configurations``` directory.
+- ```col``` - Collision limit in meters.
+- ```ce_k``` - Contact energy curve stiffness.
+- ```knotConfig``` - File name for the initial knot configuration. Should be a txt file located in ```knot_configurations``` directory. Note that overhand knot configurations for ```n1, n2, n3, n4``` are provided with a discretization of 301 nodes.
 - ```lineSearch (0 or 1)``` - Flag indicating whether line search will be used.
-- ```contactMode (0 or 1 or 2)``` - Flag indicating algorithm type, (0: explicit with dgb, 1: implicit with pardiso, 2: hybrid)
-- ```limit``` - Number of iterations before algorithm switches to implicit (*ignored if ```contactMode``` is not 2*).
 
-Once parameters are set. The simulation can be ran from a terminal by running ```make run```.
+***
+### Running the Simulation
+Once parameters are set to your liking, the simulation can be ran from the terminal by running the provided script:
+```bash
+./run.sh
+```
+If this doesn't work, execute ```chmod +x run.sh``` prior to running.
 
 ***
 
