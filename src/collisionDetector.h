@@ -19,6 +19,7 @@ public:
 
     void detectCollisions();
     void detectParallelCases();
+    void getTRefVal(const int& edge1, const int& edge2, double& t_ref);
 
     MatrixXi edge_ids;
     MatrixXi candidate_ids;

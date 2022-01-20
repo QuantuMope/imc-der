@@ -10,13 +10,17 @@ public:
     symbolicEquations();
 
     void generateContactPotentialFunctions();
-    void generateFrictionJacobianFunctions();
+    void generateContactPotentialFunctionsT0();
+    void generateContactPotentialFunctionsT1();
     void generateParallelContactPotentialFunctions();
+    void generateFrictionJacobianFunctions();
 
     LLVMDoubleVisitor contact_potential_grad_func;
     LLVMDoubleVisitor contact_potential_hess_func;
-    LLVMDoubleVisitor friction_partials_dfr_dx_func;
-    LLVMDoubleVisitor friction_partials_dfr_dfc_func;
+    LLVMDoubleVisitor contact_potential_t0_grad_func;
+    LLVMDoubleVisitor contact_potential_t0_hess_func;
+    LLVMDoubleVisitor contact_potential_t1_grad_func;
+    LLVMDoubleVisitor contact_potential_t1_hess_func;
     LLVMDoubleVisitor parallel_ACBD_case_grad_func;
     LLVMDoubleVisitor parallel_ACBD_case_hess_func;
     LLVMDoubleVisitor parallel_ADBC_case_grad_func;
@@ -25,6 +29,8 @@ public:
     LLVMDoubleVisitor parallel_CADB_case_hess_func;
     LLVMDoubleVisitor parallel_DACB_case_grad_func;
     LLVMDoubleVisitor parallel_DACB_case_hess_func;
+    LLVMDoubleVisitor friction_partials_dfr_dx_func;
+    LLVMDoubleVisitor friction_partials_dfr_dfc_func;
 
 private:
     bool symbolic_cse;

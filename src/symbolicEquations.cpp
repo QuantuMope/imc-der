@@ -314,6 +314,179 @@ void symbolicEquations::generateFrictionJacobianFunctions() {
 }
 
 
+void symbolicEquations::generateContactPotentialFunctionsT0() {
+    DenseMatrix nodes{{x1s_x, x1s_y, x1s_z,
+                       x1e_x, x1e_y, x1e_z,
+                       x2s_x, x2s_y, x2s_z,
+                       x2e_x, x2e_y, x2e_z}};
+
+    vec_basic func_inputs(nodes.as_vec_basic());
+    func_inputs.push_back(ce_k);
+    func_inputs.push_back(h2);
+
+    // Construct Symbolic Arrays for each Nodes
+    DenseMatrix x1s({x1s_x, x1s_y, x1s_z});
+    DenseMatrix x1e({x1e_x, x1e_y, x1e_z});
+    DenseMatrix x2s({x2s_x, x2s_y, x2s_z});
+    DenseMatrix x2e({x2e_x, x2e_y, x2e_z});
+
+    DenseMatrix e1(3, 1);
+    DenseMatrix e2(3, 1);
+    DenseMatrix e12(3, 1);
+
+    subtract_matrix(x1e, x1s, e1);
+    subtract_matrix(x2e, x2s, e2);
+    subtract_matrix(x2s, x1s, e12);
+
+    DenseMatrix e1_squared(3, 1);
+    DenseMatrix e2_squared(3, 1);
+    DenseMatrix e1_e12(3, 1);
+    DenseMatrix e2_e12(3, 1);
+    DenseMatrix e1_e2(3, 1);
+    e1.elementwise_mul_matrix(e1, e1_squared);
+    e2.elementwise_mul_matrix(e2, e2_squared);
+    e1.elementwise_mul_matrix(e12, e1_e12);
+    e2.elementwise_mul_matrix(e12, e2_e12);
+    e1.elementwise_mul_matrix(e2, e1_e2);
+
+    RCP<const Basic> D1 = add(e1_squared.as_vec_basic());
+    RCP<const Basic> D2 = add(e2_squared.as_vec_basic());
+    RCP<const Basic> S1 = add(e1_e12.as_vec_basic());
+    RCP<const Basic> S2 = add(e2_e12.as_vec_basic());
+    RCP<const Basic> R = add(e1_e2.as_vec_basic());
+
+    RCP<const Basic> den = sub(mul(D1, D2), pow(R, 2));
+
+    RCP<const Basic> t = zero;
+
+    RCP<const Basic> u = div(sub(mul(t, R), S2), D2);
+    RCP<const Basic> uf;
+
+    approx_fixbound(u, uf, 50.0);
+
+    RCP<const Basic> conditional;
+    approx_boxcar(u, conditional, 50.0);
+
+    RCP<const Basic> cond = div(add(mul(uf, R), S1), D1);
+    approx_fixbound(cond, cond, 50.0);
+    t = add(mul(sub(one, conditional), cond), mul(conditional, t));
+
+    DenseMatrix c1(3, 1);
+    DenseMatrix c2(3, 1);
+
+    e1.mul_scalar(t, c1);
+    e2.mul_scalar(uf, c2);
+
+    DenseMatrix dist_xyz(3, 1);
+    subtract_matrix(c1, c2, dist_xyz);
+    subtract_matrix(dist_xyz, e12, dist_xyz);
+
+    dist_xyz.elementwise_mul_matrix(dist_xyz, dist_xyz);
+
+    RCP<const Basic> dist = pow(add(dist_xyz.as_vec_basic()), 0.5);
+
+    RCP<const Basic> E = mul(div(one, ce_k), log(add(one, exp(mul(ce_k, sub(h2, dist))))));
+
+    DenseMatrix contact_potential{{E}};
+
+    DenseMatrix contact_potential_gradient(1, 12);
+    jacobian(contact_potential, nodes, contact_potential_gradient);
+
+    DenseMatrix contact_potential_hessian(12, 12);
+    jacobian(contact_potential_gradient, nodes, contact_potential_hessian);
+
+    contact_potential_t0_grad_func.init(func_inputs, contact_potential_gradient.as_vec_basic(), symbolic_cse, opt_level);
+    contact_potential_t0_hess_func.init(func_inputs, contact_potential_hessian.as_vec_basic(), symbolic_cse, opt_level);
+}
+
+
+void symbolicEquations::generateContactPotentialFunctionsT1() {
+    DenseMatrix nodes{{x1s_x, x1s_y, x1s_z,
+                       x1e_x, x1e_y, x1e_z,
+                       x2s_x, x2s_y, x2s_z,
+                       x2e_x, x2e_y, x2e_z}};
+
+    vec_basic func_inputs(nodes.as_vec_basic());
+    func_inputs.push_back(ce_k);
+    func_inputs.push_back(h2);
+
+    // Construct Symbolic Arrays for each Nodes
+    DenseMatrix x1s({x1s_x, x1s_y, x1s_z});
+    DenseMatrix x1e({x1e_x, x1e_y, x1e_z});
+    DenseMatrix x2s({x2s_x, x2s_y, x2s_z});
+    DenseMatrix x2e({x2e_x, x2e_y, x2e_z});
+
+    DenseMatrix e1(3, 1);
+    DenseMatrix e2(3, 1);
+    DenseMatrix e12(3, 1);
+
+    subtract_matrix(x1e, x1s, e1);
+    subtract_matrix(x2e, x2s, e2);
+    subtract_matrix(x2s, x1s, e12);
+
+    DenseMatrix e1_squared(3, 1);
+    DenseMatrix e2_squared(3, 1);
+    DenseMatrix e1_e12(3, 1);
+    DenseMatrix e2_e12(3, 1);
+    DenseMatrix e1_e2(3, 1);
+    e1.elementwise_mul_matrix(e1, e1_squared);
+    e2.elementwise_mul_matrix(e2, e2_squared);
+    e1.elementwise_mul_matrix(e12, e1_e12);
+    e2.elementwise_mul_matrix(e12, e2_e12);
+    e1.elementwise_mul_matrix(e2, e1_e2);
+
+    RCP<const Basic> D1 = add(e1_squared.as_vec_basic());
+    RCP<const Basic> D2 = add(e2_squared.as_vec_basic());
+    RCP<const Basic> S1 = add(e1_e12.as_vec_basic());
+    RCP<const Basic> S2 = add(e2_e12.as_vec_basic());
+    RCP<const Basic> R = add(e1_e2.as_vec_basic());
+
+    RCP<const Basic> den = sub(mul(D1, D2), pow(R, 2));
+
+    RCP<const Basic> t = one;
+
+    RCP<const Basic> u = div(sub(mul(t, R), S2), D2);
+    RCP<const Basic> uf;
+
+    approx_fixbound(u, uf, 50.0);
+
+    RCP<const Basic> conditional;
+    approx_boxcar(u, conditional, 50.0);
+
+    RCP<const Basic> cond = div(add(mul(uf, R), S1), D1);
+    approx_fixbound(cond, cond, 50.0);
+    t = add(mul(sub(one, conditional), cond), mul(conditional, t));
+
+    DenseMatrix c1(3, 1);
+    DenseMatrix c2(3, 1);
+
+    e1.mul_scalar(t, c1);
+    e2.mul_scalar(uf, c2);
+
+    DenseMatrix dist_xyz(3, 1);
+    subtract_matrix(c1, c2, dist_xyz);
+    subtract_matrix(dist_xyz, e12, dist_xyz);
+
+    dist_xyz.elementwise_mul_matrix(dist_xyz, dist_xyz);
+
+    RCP<const Basic> dist = pow(add(dist_xyz.as_vec_basic()), 0.5);
+
+    RCP<const Basic> E = mul(div(one, ce_k), log(add(one, exp(mul(ce_k, sub(h2, dist))))));
+
+    DenseMatrix contact_potential{{E}};
+
+    DenseMatrix contact_potential_gradient(1, 12);
+    jacobian(contact_potential, nodes, contact_potential_gradient);
+
+    DenseMatrix contact_potential_hessian(12, 12);
+    jacobian(contact_potential_gradient, nodes, contact_potential_hessian);
+
+    contact_potential_t1_grad_func.init(func_inputs, contact_potential_gradient.as_vec_basic(), symbolic_cse, opt_level);
+    contact_potential_t1_hess_func.init(func_inputs, contact_potential_hessian.as_vec_basic(), symbolic_cse, opt_level);
+}
+
+
+
 void symbolicEquations::generateParallelContactPotentialFunctions() {
     DenseMatrix nodes{{x1s_x, x1s_y, x1s_z,
                        x1e_x, x1e_y, x1e_z,

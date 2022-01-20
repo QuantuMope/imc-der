@@ -288,6 +288,7 @@ void world::newtonMethod(bool &solved) {
     iter = 0;
 
     m_collisionDetector->detectCollisions();
+    m_collisionDetector->detectParallelCases();
 
     while (solved == false) {
         rod->prepareForIteration();

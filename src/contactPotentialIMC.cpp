@@ -31,6 +31,8 @@ contactPotentialIMC::contactPotentialIMC(elasticRod &m_rod, timeStepper &m_stepp
 
     sym_eqs = new symbolicEquations();
     sym_eqs->generateContactPotentialFunctions();
+    sym_eqs->generateContactPotentialFunctionsT0();
+    sym_eqs->generateContactPotentialFunctionsT1();
     sym_eqs->generateParallelContactPotentialFunctions();
     if (friction) {
         sym_eqs->generateFrictionJacobianFunctions();
@@ -199,30 +201,41 @@ void contactPotentialIMC::computeFriction(int edge1, int edge2) {
 
 
 void contactPotentialIMC::computeFc(bool first_iter) {
+    ParallelCase curr_case;
+    double t_ref;
     int edge1, edge2;
-    col_detector->detectParallelCases();
     for (int i = 0; i < col_detector->num_collisions; i++) {
         edge1 = col_detector->candidate_ids(i, 0);
         edge2 = col_detector->candidate_ids(i, 1);
         prepContactInput(edge1, edge2);
 
-        switch (col_detector->parallel_cases[i]) {
-            case NOPA:
+        curr_case = col_detector->parallel_cases[i];
+
+        if (curr_case == NOPA) {
+            col_detector->getTRefVal(edge1, edge2, t_ref);
+            if (t_ref < -0.1) {
+                sym_eqs->contact_potential_t0_grad_func.call(contact_gradient.data(), contact_input.data());
+            }
+            else if (t_ref > 1.1) {
+                sym_eqs->contact_potential_t1_grad_func.call(contact_gradient.data(), contact_input.data());
+            }
+            else {
                 sym_eqs->contact_potential_grad_func.call(contact_gradient.data(), contact_input.data());
-                break;
-            case ACBD:
-                sym_eqs->parallel_ACBD_case_grad_func.call(contact_gradient.data(), contact_input.data());
-                break;
-            case ADBC:
-                sym_eqs->parallel_ADBC_case_grad_func.call(contact_gradient.data(), contact_input.data());
-                break;
-            case CADB:
-                sym_eqs->parallel_CADB_case_grad_func.call(contact_gradient.data(), contact_input.data());
-                break;
-            case DACB:
-                sym_eqs->parallel_DACB_case_grad_func.call(contact_gradient.data(), contact_input.data());
-                break;
+            }
         }
+        else if (curr_case == ACBD) {
+            sym_eqs->parallel_ACBD_case_grad_func.call(contact_gradient.data(), contact_input.data());
+        }
+        else if (curr_case == ADBC) {
+            sym_eqs->parallel_ADBC_case_grad_func.call(contact_gradient.data(), contact_input.data());
+        }
+        else if (curr_case == CADB) {
+            sym_eqs->parallel_CADB_case_grad_func.call(contact_gradient.data(), contact_input.data());
+        }
+        else if (curr_case == DACB) {
+            sym_eqs->parallel_DACB_case_grad_func.call(contact_gradient.data(), contact_input.data());
+        }
+
         contact_gradient *= contact_stiffness;
 
         if (friction && !first_iter) {
@@ -246,34 +259,46 @@ void contactPotentialIMC::computeFc(bool first_iter) {
 
 
 void contactPotentialIMC::computeFcJc(bool first_iter) {
+    ParallelCase curr_case;
+    double t_ref;
     int edge1, edge2;
-    col_detector->detectParallelCases();
     for (int i = 0; i < col_detector->num_collisions; i++) {
         edge1 = col_detector->candidate_ids(i, 0);
         edge2 = col_detector->candidate_ids(i, 1);
         prepContactInput(edge1, edge2);
 
-        switch (col_detector->parallel_cases[i]) {
-            case NOPA:
+        curr_case = col_detector->parallel_cases[i];
+
+        if (curr_case == NOPA) {
+            col_detector->getTRefVal(edge1, edge2, t_ref);
+            if (t_ref < -0.1) {
+                sym_eqs->contact_potential_t0_grad_func.call(contact_gradient.data(), contact_input.data());
+                sym_eqs->contact_potential_t0_hess_func.call(contact_hessian.data(), contact_input.data());
+            }
+            else if (t_ref > 1.1) {
+                sym_eqs->contact_potential_t1_grad_func.call(contact_gradient.data(), contact_input.data());
+                sym_eqs->contact_potential_t1_hess_func.call(contact_hessian.data(), contact_input.data());
+            }
+            else {
                 sym_eqs->contact_potential_grad_func.call(contact_gradient.data(), contact_input.data());
                 sym_eqs->contact_potential_hess_func.call(contact_hessian.data(), contact_input.data());
-                break;
-            case ACBD:
-                sym_eqs->parallel_ACBD_case_grad_func.call(contact_gradient.data(), contact_input.data());
-                sym_eqs->parallel_ACBD_case_hess_func.call(contact_hessian.data(), contact_input.data());
-                break;
-            case ADBC:
-                sym_eqs->parallel_ADBC_case_grad_func.call(contact_gradient.data(), contact_input.data());
-                sym_eqs->parallel_ADBC_case_hess_func.call(contact_hessian.data(), contact_input.data());
-                break;
-            case CADB:
-                sym_eqs->parallel_CADB_case_grad_func.call(contact_gradient.data(), contact_input.data());
-                sym_eqs->parallel_CADB_case_hess_func.call(contact_hessian.data(), contact_input.data());
-                break;
-            case DACB:
-                sym_eqs->parallel_DACB_case_grad_func.call(contact_gradient.data(), contact_input.data());
-                sym_eqs->parallel_DACB_case_hess_func.call(contact_hessian.data(), contact_input.data());
-                break;
+            }
+        }
+        else if (curr_case == ACBD) {
+            sym_eqs->parallel_ACBD_case_grad_func.call(contact_gradient.data(), contact_input.data());
+            sym_eqs->parallel_ACBD_case_hess_func.call(contact_hessian.data(), contact_input.data());
+        }
+        else if (curr_case == ADBC) {
+            sym_eqs->parallel_ADBC_case_grad_func.call(contact_gradient.data(), contact_input.data());
+            sym_eqs->parallel_ADBC_case_hess_func.call(contact_hessian.data(), contact_input.data());
+        }
+        else if (curr_case == CADB) {
+            sym_eqs->parallel_CADB_case_grad_func.call(contact_gradient.data(), contact_input.data());
+            sym_eqs->parallel_CADB_case_hess_func.call(contact_hessian.data(), contact_input.data());
+        }
+        else if (curr_case == DACB) {
+            sym_eqs->parallel_DACB_case_grad_func.call(contact_gradient.data(), contact_input.data());
+            sym_eqs->parallel_DACB_case_hess_func.call(contact_hessian.data(), contact_input.data());
         }
 
         contact_gradient *= contact_stiffness;

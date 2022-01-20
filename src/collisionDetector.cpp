@@ -45,6 +45,29 @@ void collisionDetector::fixbound(double &x) {
     }
 }
 
+
+void collisionDetector::getTRefVal(const int& edge1, const int& edge2, double& t_ref) {
+    Vector3d x1s = rod->getVertex(edge1) * scale;
+    Vector3d x1e = rod->getVertex(edge1+1) * scale;
+    Vector3d x2s = rod->getVertex(edge2) * scale;
+    Vector3d x2e = rod->getVertex(edge2+1) * scale;
+    Vector3d e1 = x1e - x1s;
+    Vector3d e2 = x2e - x2s;
+    Vector3d e12 = x2s - x1s;
+
+    double D1 = e1.array().pow(2).sum();
+    double D2 = e2.array().pow(2).sum();
+    double R = (e1.array() * e2.array()).sum();
+    double S1 = (e1.array() * e12.array()).sum();
+    double S2 = (e2.array() * e12.array()).sum();
+    double den = D1 * D2 - pow(R, 2);
+    t_ref = 0.0;
+    if (den != 0) {
+        t_ref = (S1 * D2 - S2 * R) / den;
+    }
+}
+
+
 void collisionDetector::computeMinDistance(const Vector3d &v1s, const Vector3d &v1e, const Vector3d &v2s,
                                            const Vector3d &v2e, double& dist) {
     Vector3d e1 = v1e - v1s;
@@ -63,6 +86,7 @@ void collisionDetector::computeMinDistance(const Vector3d &v1s, const Vector3d &
     if (den != 0) {
         t = (S1 * D2 - S2 * R) / den;
     }
+
     fixbound(t);
 
     double u = (t * R - S2) / D2;
