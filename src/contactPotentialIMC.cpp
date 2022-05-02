@@ -12,6 +12,8 @@ contactPotentialIMC::contactPotentialIMC(elasticRod &m_rod, timeStepper &m_stepp
     nu = m_nu;
     friction = mu > 0.0;
 
+    velo_limit = 1e-6;
+
     scale = 1 / rod->rodRadius;
     h2 = rod->rodRadius * 2;
 
@@ -32,12 +34,18 @@ contactPotentialIMC::contactPotentialIMC(elasticRod &m_rod, timeStepper &m_stepp
     friction_input[37] = rod->dt;
     friction_input[38] = K2;
 
+    eye_mat << 1.0, 0.0, 0.0,
+               0.0, 1.0, 0.0,
+               0.0, 0.0, 1.0;
+
     sym_eqs = new symbolicEquations();
     sym_eqs->generateContactPotentialPiecewiseFunctions1();
     sym_eqs->generateContactPotentialPiecewiseFunctions2();
     if (friction) {
         sym_eqs->generateFrictionJacobianPiecewiseFunctions1();
         sym_eqs->generateFrictionJacobianPiecewiseFunctions2();
+        sym_eqs->generateFrictionJacobianPiecewiseFunctions3();
+        sym_eqs->generateFrictionJacobianPiecewiseFunctions4();
     }
 }
 
@@ -170,6 +178,20 @@ void contactPotentialIMC::prepFrictionInput(const int edge1, const int edge2, co
     friction_input[33] = contact_gradient(9);
     friction_input[34] = contact_gradient(10);
     friction_input[35] = contact_gradient(11);
+
+    friction_input2[3] = contact_gradient(0);
+    friction_input2[4] = contact_gradient(1);
+    friction_input2[5] = contact_gradient(2);
+    friction_input2[6] = contact_gradient(3);
+    friction_input2[7] = contact_gradient(4);
+    friction_input2[8] = contact_gradient(5);
+    friction_input2[9] = contact_gradient(6);
+    friction_input2[10] = contact_gradient(7);
+    friction_input2[11] = contact_gradient(8);
+    friction_input2[12] = contact_gradient(9);
+    friction_input2[13] = contact_gradient(10);
+    friction_input2[14] = contact_gradient(11);
+    friction_input2[16] = mu;
 }
 
 
@@ -216,22 +238,29 @@ void contactPotentialIMC::computeFriction(const int edge1, const int edge2, cons
 
     Vector3d contact_norm = (f1s + f1e) / fn;
     Vector3d tv_rel = v_rel - v_rel.dot(contact_norm) * contact_norm;
-    double tv_rel_n = tv_rel.norm();
+    tv_rel_n = tv_rel.norm();
 
     double gamma;
-    Vector3d tv_rel_u;
-    if (tv_rel_n == 0) {
-        friction_forces.setZero();
+    if (tv_rel_n < velo_limit) {
+        gamma = (2.0 / (1 + exp(-K2 * tv_rel_n))) - 1;
+        tv_rel_u = tv_rel / velo_limit;
         fric_jaco_type = 0;
-        return;
     } else if (tv_rel_n > nu) {
         gamma = 1.0;
+        tv_rel_u = tv_rel / tv_rel_n;
         fric_jaco_type = 1;
     } else {
         gamma = (2.0 / (1 + exp(-K2 * tv_rel_n))) - 1;
+        tv_rel_u = tv_rel / tv_rel_n;
         fric_jaco_type = 2;
     }
-    tv_rel_u = tv_rel / tv_rel_n;
+    friction_input2[0] = tv_rel_u[0];
+    friction_input2[1] = tv_rel_u[1];
+    friction_input2[2] = tv_rel_u[2];
+    friction_input2[15] = gamma;
+    dgamma_input[0] = tv_rel_n;
+    dgamma_input[1] = K2;
+    tv_rel_n = velo_limit;
 
     Vector3d ffr_val = mu * gamma * tv_rel_u;
 
@@ -384,34 +413,71 @@ void contactPotentialIMC::computeFcJc(bool waitTime) {
             prepFrictionInput(edge1, edge2, edge3, edge4);
             computeFriction(edge1, edge2, edge3, edge4);
 
-            if (fric_jaco_type == 1) {
-                sym_eqs->friction_partials_gamma1_dfr_dx_func.call(friction_partials_dfr_dx.data(), friction_input.data());
-                sym_eqs->friction_partials_gamma1_dfr_dfc_func.call(friction_partials_dfr_dfc.data(), friction_input.data());
-            }
-            else if (fric_jaco_type == 2) {
-                sym_eqs->friction_partials_dfr_dx_func.call(friction_partials_dfr_dx.data(), friction_input.data());
-                sym_eqs->friction_partials_dfr_dfc_func.call(friction_partials_dfr_dfc.data(), friction_input.data());
-            }
+            sym_eqs->dtv_rel_dfc_func.call(dtv_rel_dfc.data(), friction_input.data());
+            sym_eqs->dtv_rel_dx_func.call(dtv_rel_dx.data(), friction_input.data());
+            sym_eqs->dgamma_dtv_rel_n_func.call(dgamma_dtv_rel_n.data(), dgamma_input.data());
+
+            sym_eqs->dfr_dgamma_func.call(dfr_dgamma.data(), friction_input2.data());
+            sym_eqs->dfr_dtv_rel_u_func.call(dfr_dtv_rel_u.data(), friction_input2.data());
+            sym_eqs->dfr_dfc_func.call(dfr_dfc.data(), friction_input2.data());
+
+//            if (fric_jaco_type == 1) {
+//                sym_eqs->friction_partials_gamma1_dfr_dx_func.call(friction_partials_dfr_dx.data(), friction_input.data());
+//                sym_eqs->friction_partials_gamma1_dfr_dfc_func.call(friction_partials_dfr_dfc.data(), friction_input.data());
+//            }
+//            else if (fric_jaco_type == 2) {
+//                sym_eqs->dtv_rel_dfc_func.call(dtv_rel_dfc.data(), friction_input.data());
+//                sym_eqs->dtv_rel_dx_func.call(dtv_rel_dx.data(), friction_input.data());
+//                sym_eqs->dgamma_dtv_rel_n_func.call(dgamma_dtv_rel_n.data(), dgamma_input.data());
+//
+//                sym_eqs->dfr_dgamma_func.call(dfr_dgamma.data(), friction_input2.data());
+//                sym_eqs->dfr_dtv_rel_u_func.call(dfr_dtv_rel_u.data(), friction_input2.data());
+//                sym_eqs->dfr_dfc_func.call(dfr_dfc.data(), friction_input2.data());
+//            }
 
             Matrix<double, 3, 12> zeroMatrix;
             zeroMatrix.setZero();
 
             if (constraintType == 0) {
-                friction_partials_dfr_dfc.block<3, 12>(3, 0) = zeroMatrix;
-                friction_partials_dfr_dfc.block<3, 12>(9, 0) = zeroMatrix;
+                dfr_dfc.block<3, 12>(3, 0) = zeroMatrix;
+                dfr_dfc.block<3, 12>(9, 0) = zeroMatrix;
             }
 
             if (constraintType == 1) {
-                friction_partials_dfr_dfc.block<3, 12>(9, 0) = zeroMatrix;
+                dfr_dfc.block<3, 12>(9, 0) = zeroMatrix;
             }
 
-            if (fric_jaco_type == 0) {
-                friction_jacobian.setZero();
-            }
-            else {
-                friction_jacobian = friction_partials_dfr_dx + friction_partials_dfr_dfc.transpose() * contact_hessian;
-            }
+//            cout << "dtv_rel_dfc" << endl;
+//            cout << dtv_rel_dfc << endl;
+//            cout << "dtv_rel_dx" << endl;
+//            cout << dtv_rel_dx << endl;
+//            cout << "dgamma_dtv_rel_n" << endl;
+//            cout << dgamma_dtv_rel_n << endl;
+//            cout << "dfr_dgamma" << endl;
+//            cout << dfr_dgamma << endl;
+//            cout << "dfr_dtv_rel_u" << endl;
+//            cout << dfr_dtv_rel_u << endl;
+//            cout << "dfr_dfc" << endl;
+//            cout << dfr_dfc << endl;
 
+
+            if (fric_jaco_type == 1) {
+                dtv_rel_dx_cr = dtv_rel_dfc * contact_hessian + dtv_rel_dx;
+
+                dtv_rel_u_dx_cr = (eye_mat - tv_rel_u * tv_rel_u.transpose()) * (1 / tv_rel_n) * dtv_rel_dx_cr;
+
+                friction_jacobian = dfr_dtv_rel_u * dtv_rel_u_dx_cr + dfr_dfc.transpose() * contact_hessian;
+            }
+            else if (fric_jaco_type == 2 || fric_jaco_type == 0) {
+                dtv_rel_dx_cr = dtv_rel_dfc * contact_hessian + dtv_rel_dx;
+
+                dtv_rel_u_dx_cr = (eye_mat - tv_rel_u * tv_rel_u.transpose()) * (1 / tv_rel_n) * dtv_rel_dx_cr;
+
+                dgamma_dx_cr = dgamma_dtv_rel_n * tv_rel_u.transpose() * dtv_rel_dx_cr;
+
+                friction_jacobian = dfr_dtv_rel_u * dtv_rel_u_dx_cr + dfr_dgamma * dgamma_dx_cr + dfr_dfc.transpose() * contact_hessian;
+            }
+            cout << friction_jacobian << endl;
             contact_gradient += friction_forces;
             contact_hessian += friction_jacobian;
         }

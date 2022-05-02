@@ -30,6 +30,7 @@ private:
     double nu;
     double scale;
     int fric_jaco_type;
+    double velo_limit;
 
     // Index helper
     vector<double> di{0, 1, 2, 4, 5, 6};
@@ -46,13 +47,35 @@ private:
     Matrix<double, 9, 9> e2p_hessian;
     Matrix<double, 12, 12> e2e_hessian;
 
+    Matrix<double, 3, 3> eye_mat;
+
     Vector<double, 39> friction_input;
+    Vector<double, 17> friction_input2;
     Vector<double, 12> contact_gradient;
     Vector<double, 12> friction_forces;
     Matrix<double, 12, 12> contact_hessian;
     Matrix<double, 12, 12> friction_partials_dfr_dx;
     Matrix<double, 12, 12> friction_partials_dfr_dfc;
     Matrix<double, 12, 12> friction_jacobian;
+
+    Matrix<double, 3, 12> dtv_rel_dfc;
+    Matrix<double, 3, 12> dtv_rel_dx;
+    Vector<double, 1> dgamma_dtv_rel_n;
+    Vector<double, 2> dgamma_input;
+
+    Matrix<double, 12, 1> dfr_dgamma;
+    Matrix<double, 12, 3> dfr_dtv_rel_u;
+    Matrix<double, 12, 12> dfr_dfc;
+
+    Matrix<double, 3, 12> dtv_rel_dx_cr;
+    Matrix<double, 3, 12> dtv_rel_u_dx_cr;
+    Matrix<double, 1, 12> dgamma_dx_cr;
+
+    Vector<double, 3> tv_rel_u;
+    double tv_rel_n;
+
+    void compute_dgamma_dx();
+    void compute_dtv_rel_u_dx();
 
     void prepContactInput(int edge1, int edge2, int edge3, int edge4, int constraintType);
     void prepFrictionInput(int edge1, int edge2, int edge3, int edge4);

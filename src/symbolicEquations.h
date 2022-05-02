@@ -14,6 +14,7 @@ public:
     void generateFrictionJacobianPiecewiseFunctions1();
     void generateFrictionJacobianPiecewiseFunctions2();
     void generateFrictionJacobianPiecewiseFunctions3();
+    void generateFrictionJacobianPiecewiseFunctions4();
 
     LLVMDoubleVisitor E_p2p_gradient_func;
     LLVMDoubleVisitor E_p2p_hessian_func;
@@ -34,10 +35,12 @@ public:
     LLVMDoubleVisitor friction_partials_gamma1_dfr_dx_func;
     LLVMDoubleVisitor friction_partials_gamma1_dfr_dfc_func;
 
+    LLVMDoubleVisitor dtv_rel_dfc_func;
+    LLVMDoubleVisitor dtv_rel_dx_func;
+    LLVMDoubleVisitor dgamma_dtv_rel_n_func;
+
     LLVMDoubleVisitor dfr_dgamma_func;
-    LLVMDoubleVisitor dgamma_dx_func;
-    LLVMDoubleVisitor dfr_dvtrelhat_func;
-    LLVMDoubleVisitor dvtrelhat_dx_func;
+    LLVMDoubleVisitor dfr_dtv_rel_u_func;
     LLVMDoubleVisitor dfr_dfc_func;
 
 private:

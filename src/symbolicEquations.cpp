@@ -652,42 +652,63 @@ void symbolicEquations::generateFrictionJacobianPiecewiseFunctions3() {
     contact_norm.mul_scalar(tmp, tv_rel);
     subtract_matrix(v_rel, tv_rel, tv_rel);
 
-    RCP<const Basic> tv_rel_n;
-    get_norm(tv_rel, tv_rel_n);
+    DenseMatrix dtv_rel_dfc(3, 12);
+    jacobian(tv_rel, cforces, dtv_rel_dfc);
 
-    DenseMatrix tv_rel_u(3, 1);
-    convert_to_unit_vector(tv_rel, tv_rel_u);
+    DenseMatrix dtv_rel_dx(3, 12);
+    jacobian(tv_rel, nodes, dtv_rel_dx);
 
-    RCP<const Basic> gamma = sub(div(integer(2), add(one, exp(mul(integer(-1), mul(K2, tv_rel_n))))), one);
-    DenseMatrix gamma_mat({gamma});
-    DenseMatrix dgamma_dx(12, 1);
-    jacobian(gamma_mat, nodes, dgamma_dx);
-    dgamma_dx_func.init(ffr_input, dgamma_dx.as_vec_basic(), symbolic_cse, opt_level);
+    dtv_rel_dfc_func.init(ffr_input, dtv_rel_dfc.as_vec_basic(), symbolic_cse, opt_level);
+    dtv_rel_dx_func.init(ffr_input, dtv_rel_dx.as_vec_basic(), symbolic_cse, opt_level);
 
-    DenseMatrix dtvrel_dx(3, 12);
-    jacobian(tv_rel, nodes, dtvrel_dx);
-    dtvrel_dx.mul_scalar(div(one, real_double(1e-6)), dtvrel_dx);
-
-    DenseMatrix I(3, 3);
-    eye(I);
-    DenseMatrix tv_rel_mat_squared(3, 3);
-    tv_rel.mul_matrix(tv_rel, tv_rel_mat_squared);
-
-    DenseMatrix dtvrelhat_dx(3, 12);
-    subtract_matrix(I, tv_rel_mat_squared, tv_rel_mat_squared);
-    tv_rel_mat_squared.mul_matrix(dtvrel_dx, dtvrelhat_dx);
-    dvtrelhat_dx_func.init(ffr_input, dtvrelhat_dx.as_vec_basic(), symbolic_cse, opt_level);
+    RCP<const Basic> tv_rel_n_scalar = symbol("tv_rel_n");
+    RCP<const Basic> gamma_scalar = sub(div(integer(2), add(one, exp(mul(integer(-1), mul(K2, tv_rel_n_scalar))))), one);
+    DenseMatrix tv_rel_n({tv_rel_n_scalar});
+    DenseMatrix gamma({gamma_scalar});
+    DenseMatrix dgamma_input({tv_rel_n_scalar, K2});
+    DenseMatrix dgamma_dtv_rel_n(1, 1);
+    jacobian(gamma, tv_rel_n, dgamma_dtv_rel_n);
+    dgamma_dtv_rel_n_func.init(dgamma_input.as_vec_basic(), dgamma_dtv_rel_n.as_vec_basic(), symbolic_cse, opt_level);
 }
 
 
 void symbolicEquations::generateFrictionJacobianPiecewiseFunctions4() {
-    DenseMatrix tv_rel_u{{x1s_x, x1s_y, x1s_z}};  // just use these symbols even if they aren't "correct"
-    RCP<const Basic> gamma;
-    DenseMatrix gamma_mat({gamma});
+    RCP<const Basic> gamma_symbol = symbol("gamma");
+    DenseMatrix gamma({gamma_symbol});
+    RCP<const Basic> tv_rel_u_x = symbol("tv_rel_u_x");
+    RCP<const Basic> tv_rel_u_y = symbol("tv_rel_u_y");
+    RCP<const Basic> tv_rel_u_z = symbol("tv_rel_u_z");
+    DenseMatrix tv_rel_u({tv_rel_u_x, tv_rel_u_y, tv_rel_u_z});
+
+    DenseMatrix f1s({f1s_x, f1s_y, f1s_z});
+    DenseMatrix f1e({f1e_x, f1e_y, f1e_z});
+    DenseMatrix f2s({f2s_x, f2s_y, f2s_z});
+    DenseMatrix f2e({f2e_x, f2e_y, f2e_z});
+
+    vec_basic cforces {f1s_x, f1s_y, f1s_z,
+                       f1e_x, f1e_y, f1e_z,
+                       f2s_x, f2s_y, f2s_z,
+                       f2e_x, f2e_y, f2e_z};
+
+    vec_basic ffr_input {tv_rel_u_x, tv_rel_u_y, tv_rel_u_z,
+                         f1s_x, f1s_y, f1s_z,
+                         f1e_x, f1e_y, f1e_z,
+                         f2s_x, f2s_y, f2s_z,
+                         f2e_x, f2e_y, f2e_z,
+                         gamma_symbol, mu};
+
+    RCP<const Basic> f1s_n;
+    get_norm(f1s, f1s_n);
+    RCP<const Basic> f1e_n;
+    get_norm(f1e, f1e_n);
+    RCP<const Basic> f2s_n;
+    get_norm(f2s, f2s_n);
+    RCP<const Basic> f2e_n;
+    get_norm(f2e, f2e_n);
 
     DenseMatrix ffr1(3, 1);
     DenseMatrix ffr2(3, 1);
-    tv_rel_u.mul_scalar(mul(gamma, mu), ffr1);
+    tv_rel_u.mul_scalar(mul(gamma_symbol, mu), ffr1);
     ffr1.mul_scalar(integer(-1), ffr2);
 
     DenseMatrix ffr1s(3, 1);
@@ -704,16 +725,14 @@ void symbolicEquations::generateFrictionJacobianPiecewiseFunctions4() {
                          ffr2s.get(0, 0), ffr2s.get(1, 0), ffr2s.get(2, 0),
                          ffr2e.get(0, 0), ffr2e.get(1, 0), ffr2e.get(2, 0)});
 
-    DenseMatrix friction_partial_dfr_dx(12, 12);
-    DenseMatrix friction_partial_dfr_dfc(12, 12);
-    jacobian(ffr_vec, nodes, friction_partial_dfr_dx);
-    jacobian(ffr_vec, cforces, friction_partial_dfr_dfc);
-
     DenseMatrix dfr_dgamma(12, 1);
-    jacobian(ffr_vec, gamma_mat, dfr_dgamma);
+    DenseMatrix dfr_dtv_rel_u(12, 3);
+    DenseMatrix dfr_dfc(12, 12);
+    jacobian(ffr_vec, gamma, dfr_dgamma);
+    jacobian(ffr_vec, tv_rel_u, dfr_dtv_rel_u);
+    jacobian(ffr_vec, cforces, dfr_dfc);
 
-    DenseMatrix dfr_
-
-    friction_partials_dfr_dx_func.init(ffr_input, friction_partial_dfr_dx.as_vec_basic(), symbolic_cse, opt_level);
-    friction_partials_dfr_dfc_func.init(ffr_input, friction_partial_dfr_dfc.as_vec_basic(), symbolic_cse, opt_level);
+    dfr_dgamma_func.init(ffr_input, dfr_dgamma.as_vec_basic(), symbolic_cse, opt_level);
+    dfr_dtv_rel_u_func.init(ffr_input, dfr_dtv_rel_u.as_vec_basic(), symbolic_cse, opt_level);
+    dfr_dfc_func.init(ffr_input, dfr_dfc.as_vec_basic(), symbolic_cse, opt_level);
 }
