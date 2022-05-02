@@ -7,15 +7,21 @@ set(CMAKE_CXX_FLAGS "-Wno-deprecated-declarations -fopenmp")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3")
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "../")
 
+list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules)
+
 find_package(SymEngine REQUIRED)
-find_package(Eigen3 REQUIRED)
+find_package(Eigen3 3.4 REQUIRED)
 find_package(OpenGL REQUIRED)
 find_package(GLUT REQUIRED)
+find_package(MKL REQUIRED)
 
 include_directories(${SYMENGINE_INCLUDE_DIRS}
         ${EIGEN_INCLUDE_DIRS}
         ${OPENGL_INCLUDE_DIRS}
-        ${GLUT_INCLUDE_DIRS})
+        ${GLUT_INCLUDE_DIRS}
+        ${MKL_INCLUDE_DIR})
+
+link_directories(${MKL_LIBRARY_DIR})
 
 add_executable(simDER
         src/main.cpp
@@ -37,8 +43,8 @@ target_link_libraries(simDER
         ${SYMENGINE_LIBRARIES}
         ${OPENGL_LIBRARIES}
         ${GLUT_LIBRARY}
+        ${MKL_LIBRARIES}
         Eigen3::Eigen
-        pardiso600-GNU800-X86-64
         lapack
         gfortran
         pthread

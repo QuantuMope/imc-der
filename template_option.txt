@@ -20,11 +20,10 @@ waitTime           2
 pullTime           60
 releaseTime        0
 pullSpeed          0.006
-deltaTime          1e-2
-friction           0
+deltaTime          5e-3
+colLimit           2e-3
+delta              1e-4
 mu                 0.30
-velTol             1000
-col                2.5e-4
-ce_k               50
-knotConfig         n1
-lineSearch         0
+nu                 1e-4
+lineSearch         1
+knotConfig         n4

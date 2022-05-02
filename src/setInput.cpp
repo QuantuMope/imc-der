@@ -25,15 +25,14 @@ setInput::setInput()
     AddOption("releaseTime", "Time of releasing", release_time);
     AddOption("waitTime", "Time to wait before pulling", wait_time);
     AddOption("pullSpeed", "Speed of the pull", pull_speed);
-    AddOption("friction", "Turn on or off friction", friction);
-    AddOption("col", "Collision limit for collision detection", col);
+    AddOption("colLimit", "Limit for collision detection to be put in candidate set", col_limit);
     AddOption("knotConfig", "Initial knot configuration", knot_config);
-    AddOption("ce_k", "Contact energy steepness parameter", ce_k);
-    AddOption("mu", "Kinematic coefficient of friction", mu);
+    AddOption("delta", "Distance tolerance for contact", delta);
+    AddOption("mu", "Coefficient of friction", mu);
+    AddOption("nu", "Slipping tolerance for friction ", nu);
     AddOption("recordNodes", "Option for whether or not to record nodes", record_nodes);
     AddOption("recordNodesStart", "Start time for recording nodes", record_nodes_start);
     AddOption("recordNodesEnd", "End time for recording nodes", record_nodes_end);
-    AddOption("velTol", "Friction velocity tolerance", vel_tol);
     AddOption("lineSearch", "Flag for enabling line search", line_search);
 }
 

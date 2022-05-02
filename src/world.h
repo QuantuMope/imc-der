@@ -69,10 +69,9 @@ private:
     double wait_time;
     double pull_speed;
     double col_limit;
-    double ce_k;
+    double delta;
     double mu;
-    double vel_tol;
-    int friction;
+    double nu;
     int line_search;
     string knot_config;
     double alpha;

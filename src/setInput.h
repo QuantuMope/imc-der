@@ -59,11 +59,10 @@ private:
     double release_time;
     double wait_time;
     double pull_speed;
-    int friction;
-    double col;
-    double ce_k;
+    double col_limit;
+    double delta;
     double mu;
-    double vel_tol;
+    double nu;
     int record_nodes;
     double record_nodes_start;
     double record_nodes_end;

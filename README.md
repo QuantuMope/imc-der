@@ -15,6 +15,8 @@ and uses the subsequent energy gradient (forces) and Hessian (force Jacobian) to
 ### Formulation Updates since the Published Paper
 - Explicit and hybrid formulations for IMC were removed. After a Hessian chain ruling bug fix, the fully implicit version is by far superior in terms of performance.
 - Friction has been changed to a fully implicit formulation.
+- Smooth distance has been exchanged for piecewise analytical distance.
+- and more. For full updates, please refer to our new paper (**TODO: add link when available**).
 
 ***
 
@@ -44,15 +46,22 @@ Install the following C++ dependencies:
     make -j4
     sudo make install
     ```
-- [Pardiso Solver](https://www.pardiso-project.org/)
-  - Pardiso is used as a linear system of equations solver for sparse matrices.
-  - Go to https://www.pardiso-project.org/ and click the "Download Pardiso" link. Choose the appropriate license type and fill out the registration form. You will then obtain an email with the download link as well as your license key.
-  - Click the download link in the email and download the appropriate shared library for your system. Currently, we use ```libpardiso600-GNU800-X86-64.so```; if another library version is used, change the library name appropriately in the ```CMakeLists.txt```.
-  - Move the library to a directory where it can be found by cmake.
+- [Intel oneAPI Math Kernel Library (oneMKL)](https://www.intel.com/content/www/us/en/developer/tools/oneapi/onemkl-download.html?operatingsystem=linux&distributions=webdownload&options=online)
+  - Necessary for access to Pardiso, which is used as a sparse matrix solver.
+  - Intel MKL is also used as the BLAS / LAPACK backend for Eigen.
+  - If you are using Linux, follow the below steps. Otherwise, click the link above for your OS.
     ```bash
-    sudo mv libpardiso600-GNU800-X86-64.so /usr/lib
+    cd /tmp
+    wget https://registrationcenter-download.intel.com/akdlm/irc_nas/18483/l_onemkl_p_2022.0.2.136.sh
+    
+    # This runs an installer, simply follow the instructions.
+    sudo sh ./l_onemkl_p_2022.0.2.136.sh
     ```
-  - Finally, copy and paste your license key into a text file called ```pardiso.lic``` and place this file into the main directory.
+  - Add the following to your .bashrc. Change the directory accordingly if your MKL version is different.
+    ```bash
+    export MKLROOT=/opt/intel/oneapi/mkl/2022.0.2
+    ```
+
 - [OpenGL / GLUT](https://www.opengl.org/)
   - OpenGL / GLUT is used for rendering the knot through a simple graphic.
   - Simply install through apt package manager:
@@ -102,13 +111,12 @@ Specifiable parameters are as follows (we use SI units):
 - ```releaseTime``` - Duration to loosen for (*starts after ```waitTime``` + ```pullTime``` is done*).
 - ```pullSpeed``` - Speed at which to pull and/or loosen each end.
 - ```deltaTime``` - Time step size.
-- ```friction (0 or 1)``` - Flag indicating whether friction will be simulated.
-- ```mu``` - Friction coefficient.
-- ```velTol``` - Velocity tolerance for static friction.
-- ```col``` - Collision limit in meters.
-- ```ce_k``` - Contact energy curve stiffness.
-- ```knotConfig``` - File name for the initial knot configuration. Should be a txt file located in ```knot_configurations``` directory. Note that overhand knot configurations for ```n1, n2, n3, n4``` are provided with a discretization of 301 nodes.
+- ```colLimit``` - Distance limit for inclusion in contact candidate set (*colLimit must be > delta*).
+- ```delta``` - Distance tolerance for contact.
+- ```mu``` - Friction coefficient. A value of zero turns friction off.
+- ```nu``` - Slipping tolerance for friction.
 - ```lineSearch (0 or 1)``` - Flag indicating whether line search will be used.
+- ```knotConfig``` - File name for the initial knot configuration. Should be a txt file located in ```knot_configurations``` directory. Note that overhand knot configurations for ```n1, n2, n3, n4``` are provided with a discretization of 301 nodes.
 
 ***
 ### Running the Simulation

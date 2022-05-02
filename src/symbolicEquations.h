@@ -9,37 +9,45 @@ class symbolicEquations
 public:
     symbolicEquations();
 
-    void generateContactPotentialFunctions();
-    void generateContactPotentialFunctionsT0();
-    void generateContactPotentialFunctionsT1();
-    void generateParallelContactPotentialFunctions();
-    void generateFrictionJacobianFunctions();
+    void generateContactPotentialPiecewiseFunctions1();
+    void generateContactPotentialPiecewiseFunctions2();
+    void generateFrictionJacobianPiecewiseFunctions1();
+    void generateFrictionJacobianPiecewiseFunctions2();
+    void generateFrictionJacobianPiecewiseFunctions3();
 
-    LLVMDoubleVisitor contact_potential_grad_func;
-    LLVMDoubleVisitor contact_potential_hess_func;
-    LLVMDoubleVisitor contact_potential_t0_grad_func;
-    LLVMDoubleVisitor contact_potential_t0_hess_func;
-    LLVMDoubleVisitor contact_potential_t1_grad_func;
-    LLVMDoubleVisitor contact_potential_t1_hess_func;
-    LLVMDoubleVisitor parallel_ACBD_case_grad_func;
-    LLVMDoubleVisitor parallel_ACBD_case_hess_func;
-    LLVMDoubleVisitor parallel_ADBC_case_grad_func;
-    LLVMDoubleVisitor parallel_ADBC_case_hess_func;
-    LLVMDoubleVisitor parallel_CADB_case_grad_func;
-    LLVMDoubleVisitor parallel_CADB_case_hess_func;
-    LLVMDoubleVisitor parallel_DACB_case_grad_func;
-    LLVMDoubleVisitor parallel_DACB_case_hess_func;
+    LLVMDoubleVisitor E_p2p_gradient_func;
+    LLVMDoubleVisitor E_p2p_hessian_func;
+    LLVMDoubleVisitor E_e2p_gradient_func;
+    LLVMDoubleVisitor E_e2p_hessian_func;
+    LLVMDoubleVisitor E_e2e_gradient_func;
+    LLVMDoubleVisitor E_e2e_hessian_func;
+
+    LLVMDoubleVisitor E_p2p_pen_gradient_func;
+    LLVMDoubleVisitor E_p2p_pen_hessian_func;
+    LLVMDoubleVisitor E_e2p_pen_gradient_func;
+    LLVMDoubleVisitor E_e2p_pen_hessian_func;
+    LLVMDoubleVisitor E_e2e_pen_gradient_func;
+    LLVMDoubleVisitor E_e2e_pen_hessian_func;
+
     LLVMDoubleVisitor friction_partials_dfr_dx_func;
     LLVMDoubleVisitor friction_partials_dfr_dfc_func;
+    LLVMDoubleVisitor friction_partials_gamma1_dfr_dx_func;
+    LLVMDoubleVisitor friction_partials_gamma1_dfr_dfc_func;
+
+    LLVMDoubleVisitor dfr_dgamma_func;
+    LLVMDoubleVisitor dgamma_dx_func;
+    LLVMDoubleVisitor dfr_dvtrelhat_func;
+    LLVMDoubleVisitor dvtrelhat_dx_func;
+    LLVMDoubleVisitor dfr_dfc_func;
 
 private:
     bool symbolic_cse;
     int opt_level;
 
     // Helper functions for symbolic differentiation process
-    void approx_fixbound(const RCP<const Basic> &input, RCP<const Basic> &result, const double &k);
-    void approx_boxcar(const RCP<const Basic> &input, RCP<const Basic> &result, const double &k);
     void subtract_matrix(const DenseMatrix &A, const DenseMatrix &B, DenseMatrix &C);
+    void get_norm(const DenseMatrix &num, RCP<const Basic> &C);
+    void convert_to_unit_vector(const DenseMatrix &num, DenseMatrix &C);
 
     RCP<const Basic> x1s_x;
     RCP<const Basic> x1s_y;
@@ -53,7 +61,7 @@ private:
     RCP<const Basic> x2e_x;
     RCP<const Basic> x2e_y;
     RCP<const Basic> x2e_z;
-    RCP<const Basic> ce_k;
+    RCP<const Basic> K1;
     RCP<const Basic> h2;
 
     RCP<const Basic> x1s_x0;
@@ -82,5 +90,5 @@ private:
     RCP<const Basic> f2e_z;
     RCP<const Basic> mu;
     RCP<const Basic> dt;
-    RCP<const Basic> vel_tol;
+    RCP<const Basic> K2;
 };

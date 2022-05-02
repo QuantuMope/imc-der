@@ -1,28 +1,26 @@
 #include "collisionDetector.h"
 
 
-collisionDetector::collisionDetector(elasticRod &m_rod, timeStepper &m_stepper, double m_collision_limit) {
+collisionDetector::collisionDetector(elasticRod &m_rod, timeStepper &m_stepper, double m_delta, double m_col_limit) {
     rod = &m_rod;
     stepper = &m_stepper;
-    collision_limit = m_collision_limit;
+    delta = m_delta;
+    col_limit = m_col_limit;
     scale = 1 / rod->rodRadius;
-    contact_limit = scale * (2 * rod->rodRadius + collision_limit);
 
-    axis_ref << 1, 0, 0;
-    eye << 1, 0, 0,
-           0, 1, 0,
-           0, 0, 1;
+    contact_limit = scale * (2 * rod->rodRadius + delta);
+    candidate_limit = scale * (2 * rod->rodRadius + col_limit);
+    numerical_limit = scale * (2 * rod->rodRadius - delta);
 
     num_edge_combos = 0;
     int ignore_adjacent = 3;  // Here, we assume that no edge can collide with the next 3 adjacent edges on either side
     for (int i = 0; i < rod->ne; i++) {
         for (int j = i+ignore_adjacent+1; j < rod->ne; j++) {
-            parallel_cases.push_back(NOPA);
             num_edge_combos++;
         }
     }
 
-    candidate_ids.setZero(num_edge_combos, 2);
+    contact_ids.setZero(num_edge_combos, 6);
     edge_ids.resize(num_edge_combos, 2);
 
     int real_index = 0;
@@ -46,33 +44,11 @@ void collisionDetector::fixbound(double &x) {
 }
 
 
-void collisionDetector::getTRefVal(const int& edge1, const int& edge2, double& t_ref) {
-    Vector3d x1s = rod->getVertex(edge1) * scale;
-    Vector3d x1e = rod->getVertex(edge1+1) * scale;
-    Vector3d x2s = rod->getVertex(edge2) * scale;
-    Vector3d x2e = rod->getVertex(edge2+1) * scale;
+void collisionDetector::computeMinDistance(const Vector3d &x1s, const Vector3d &x1e, const Vector3d &x2s,
+                                           const Vector3d &x2e, double& dist) {
     Vector3d e1 = x1e - x1s;
     Vector3d e2 = x2e - x2s;
     Vector3d e12 = x2s - x1s;
-
-    double D1 = e1.array().pow(2).sum();
-    double D2 = e2.array().pow(2).sum();
-    double R = (e1.array() * e2.array()).sum();
-    double S1 = (e1.array() * e12.array()).sum();
-    double S2 = (e2.array() * e12.array()).sum();
-    double den = D1 * D2 - pow(R, 2);
-    t_ref = 0.0;
-    if (den != 0) {
-        t_ref = (S1 * D2 - S2 * R) / den;
-    }
-}
-
-
-void collisionDetector::computeMinDistance(const Vector3d &v1s, const Vector3d &v1e, const Vector3d &v2s,
-                                           const Vector3d &v2e, double& dist) {
-    Vector3d e1 = v1e - v1s;
-    Vector3d e2 = v2e - v2s;
-    Vector3d e12 = v2s - v1s;
 
     double D1 = e1.array().pow(2).sum();
     double D2 = e2.array().pow(2).sum();
@@ -99,77 +75,104 @@ void collisionDetector::computeMinDistance(const Vector3d &v1s, const Vector3d &
     }
     fixbound(t);
 
-    dist = pow((e1 * t - e2 * uf - e12).array().pow(2).sum(), 0.5);
+    dist = (e1 * t - e2 * uf - e12).norm();
 }
 
 
-void collisionDetector::detectParallelCases() {
-    int edge1, edge2;
-    Vector3d v1s, v1e, v2s, v2e, e1, e2, e1_u, e2_u, v;
-    double angle, c, s, A, B, C, D;
-    for (int i = 0; i < num_collisions; i++) {
-        edge1 = candidate_ids(i, 0);
-        edge2 = candidate_ids(i, 1);
+void collisionDetector::computeMinDistance(int &idx1, int &idx2, int &idx3, int &idx4, double &dist, int &constraintType) {
 
-        v1s = rod->getVertex(edge1);
-        v1e = rod->getVertex(edge1+1);
-        v2s = rod->getVertex(edge2);
-        v2e = rod->getVertex(edge2+1);
+    Vector3d x1s = rod->getVertex(idx1) * scale;
+    Vector3d x1e = rod->getVertex(idx1+1) * scale;
 
-        e1 = v1e - v1s;
-        e2 = v2e - v2s;
+    Vector3d x2s = rod->getVertex(idx2) * scale;
+    Vector3d x2e = rod->getVertex(idx2+1) * scale;
 
-        e1_u = e1.array() / e1.norm();
-        e2_u = e2.array() / e2.norm();
+    Vector3d e1 = x1e - x1s;
+    Vector3d e2 = x2e - x2s;
+    Vector3d e12 = x2s - x1s;
 
-        angle = abs(acos(e1_u.dot(e2_u)));
-        angle = min(angle, M_PI - angle) * 180.0 / M_PI;
+    double D1 = e1.array().pow(2).sum();
+    double D2 = e2.array().pow(2).sum();
+    double R = (e1.array() * e2.array()).sum();
+    double S1 = (e1.array() * e12.array()).sum();
+    double S2 = (e2.array() * e12.array()).sum();
 
-        if (angle > 1.0) {
-            parallel_cases[i] = NOPA;
-        } else {
-            v = e1_u.cross(axis_ref);
-            c = e1_u.dot(axis_ref);
-            s = v.norm();
+    double den = D1 * D2 - pow(R, 2);
 
-            Matrix3d kmat;
-            kmat << 0, -v[2], v[1],
-                    v[2], 0, -v[0],
-                    -v[1], v[0], 0;
-
-            Matrix3d mat = eye + kmat + kmat * kmat * ((1 - c) / v.array().pow(2).sum());
-
-            A = 0;
-            B = e1.norm();
-            C = mat(0, all).dot((v2s - v1s));
-            D = mat(0, all).dot((v2e - v1s));
-
-            if (A < C && C < B && B < D) {
-                parallel_cases[i] = ACBD;
-            }
-            else if (A < D && D < B && B < C) {
-                parallel_cases[i] = ADBC;
-            }
-            else if (C < A && A < D && D < B) {
-                parallel_cases[i] = CADB;
-            }
-            else if (D < A && A < C && C < B) {
-                parallel_cases[i] = DACB;
-            }
-            else {
-                parallel_cases[i] = NOPA;
-            }
-        }
+    double t = 0.0;
+    if (den != 0) {
+        t = (S1 * D2 - S2 * R) / den;
     }
+    fixbound(t);
+
+    double u = (t * R - S2) / D2;
+
+    double uf = u;
+    fixbound(uf);
+
+    if (uf != u) {
+        t = (uf * R + S1) / D1;
+    }
+    fixbound(t);
+
+    if ((t == 0 || t == 1) && (uf == 0 || uf == 1)) // p2p
+    {
+        if (t == 0) { idx3 = idx1 + 1; }
+        if (t == 1) {
+            idx3 = idx1;
+            idx1 = idx1 + 1;
+        }
+        if (uf == 0) { idx4 = idx2 + 1; }
+        if (uf == 1) {
+            idx4 = idx2;
+            idx2 = idx2 + 1;
+        };
+        constraintType = 0;
+    } else // p2e
+    {
+        if (t == 0 || t == 1 || uf == 0 || uf == 1) //p2e
+        {
+            if (t == 0) {
+                int temp = idx1;
+                idx1 = idx2;
+                idx2 = temp;
+                idx3 = idx1 + 1;
+                idx4 = idx2 + 1;
+            }
+            if (t == 1) {
+                int temp = idx1 + 1;
+                idx1 = idx2;
+                idx2 = temp;
+                idx3 = idx1 + 1;
+                idx4 = idx2 - 1;
+            }
+            if (uf == 0) {
+                idx2 = idx2;
+                idx3 = idx1 + 1;
+                idx4 = idx2 + 1;
+            }
+            if (uf == 1) {
+                idx2 = idx2 + 1;
+                idx3 = idx1 + 1;
+                idx4 = idx2 - 1;
+            }
+            constraintType = 1;
+        } else {
+            idx3 = idx1 + 1;
+            idx4 = idx2 + 1;
+            constraintType = 2;
+        }
+
+    }
+    dist = (e1 * t - e2 * uf - e12).norm();
 }
 
 
-
-void collisionDetector::detectCollisions() {
+void collisionDetector::constructCandidateSet() {
     int edge1, edge2;
     double curr_dist;
     min_dist = 1e10;  // something arbitrarily large
-    num_collisions = 0;
+    candidateSet.clear();
 
     for (int i = 0; i < num_edge_combos; i++) {
         edge1 = edge_ids(i, 0);
@@ -180,11 +183,38 @@ void collisionDetector::detectCollisions() {
         if (curr_dist < min_dist) {
             min_dist = curr_dist;
         }
-        if (curr_dist < contact_limit) {
-            candidate_ids(num_collisions, 0) = edge1;
-            candidate_ids(num_collisions, 1) = edge2;
-            num_collisions++;
+        if (curr_dist < candidate_limit) {
+            candidateSet.push_back(Vector2i(edge1, edge2));
         }
     }
     min_dist /= scale;
+}
+
+
+void collisionDetector::detectCollisions() {
+    int edge1, edge2, edge3, edge4, constraintType;
+    double curr_dist;
+    int j = 0;
+
+    for (int i = 0; i < candidateSet.size(); i++) {
+        edge1 = candidateSet[i][0];
+        edge2 = candidateSet[i][1];
+        computeMinDistance(edge1, edge2, edge3, edge4, curr_dist, constraintType);
+
+        if (curr_dist < contact_limit) {
+            contact_ids(j, 0) = edge1;
+            contact_ids(j, 1) = edge2;
+            contact_ids(j, 2) = constraintType;
+            contact_ids(j, 3) = edge3;
+            contact_ids(j, 4) = edge4;
+            if (curr_dist < numerical_limit) {
+                contact_ids(j, 5) = 1;
+            }
+            else {
+                contact_ids(j, 5) = 0;
+            }
+            j++;
+        }
+    }
+    num_collisions = j;
 }

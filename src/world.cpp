@@ -26,11 +26,10 @@ world::world(setInput &m_inputData) {
     release_time = m_inputData.GetScalarOpt("releaseTime");    // get time of loosening
     wait_time = m_inputData.GetScalarOpt("waitTime");          // get time of waiting
     pull_speed = m_inputData.GetScalarOpt("pullSpeed");        // get speed of pulling
-    ce_k = m_inputData.GetScalarOpt("ce_k");                   // contact energy stiffness
-    col_limit = m_inputData.GetScalarOpt("col");               // distance limit for contact
-    friction = m_inputData.GetIntOpt("friction");              // dynamic friction option
+    col_limit = m_inputData.GetScalarOpt("colLimit");          // distance limit for candidate set
+    delta = m_inputData.GetScalarOpt("delta");                 // distance tolerance for contact
     mu = m_inputData.GetScalarOpt("mu");                       // friction coefficient
-    vel_tol = m_inputData.GetScalarOpt("velTol");              // velocity tolerance for smooth friction
+    nu = m_inputData.GetScalarOpt("nu");                       // slipping tolerance for friction
     line_search = m_inputData.GetIntOpt("lineSearch");         // flag for enabling line search
     knot_config = m_inputData.GetStringOpt("knotConfig");      // get initial knot configuration
 
@@ -140,8 +139,8 @@ void world::setRodStepper() {
     m_inertialForce = new inertialForce(*rod, *stepper);
     m_gravityForce = new externalGravityForce(*rod, *stepper, gVector);
     m_dampingForce = new dampingForce(*rod, *stepper, viscosity);
-    m_collisionDetector = new collisionDetector(*rod, *stepper, col_limit);
-    m_contactPotentialIMC = new contactPotentialIMC(*rod, *stepper, *m_collisionDetector, ce_k, friction, mu, vel_tol);
+    m_collisionDetector = new collisionDetector(*rod, *stepper, delta, col_limit);
+    m_contactPotentialIMC = new contactPotentialIMC(*rod, *stepper, *m_collisionDetector, delta, mu, nu);
 
     // Allocate every thing to prepare for the first iteration
     rod->updateTimeStep();
@@ -224,7 +223,7 @@ void world::updateTimeStep() {
 
     updateBoundary();
 
-    rod->updateGuess();  // our guess is just the previous position
+    rod->updateGuess();
     newtonMethod(solved);
 
     // calculate pull forces;
@@ -273,12 +272,12 @@ void world::newtonDamper() {
 
 
 void world::printSimData() {
-    printf("time: %.4f | iters: %i | con: %i | min_dist: %.6f | k: %.3e | fric: %i\n",
+    printf("time: %.4f | iters: %i | con: %i | min_dist: %.6f | k: %.3e | fric: %.1f\n",
            currentTime, iter,
            m_collisionDetector->num_collisions,
            m_collisionDetector->min_dist,
            m_contactPotentialIMC->contact_stiffness,
-           friction);
+           mu);
 }
 
 
@@ -287,8 +286,7 @@ void world::newtonMethod(bool &solved) {
     double normf0 = 0;
     iter = 0;
 
-    m_collisionDetector->detectCollisions();
-    m_collisionDetector->detectParallelCases();
+    m_collisionDetector->constructCandidateSet();
 
     while (solved == false) {
         rod->prepareForIteration();
@@ -314,11 +312,12 @@ void world::newtonMethod(bool &solved) {
         m_dampingForce->computeFd();
         m_dampingForce->computeJd();
 
+        m_collisionDetector->detectCollisions();
         if (iter == 0) {
             m_contactPotentialIMC->updateContactStiffness();
         }
 
-        m_contactPotentialIMC->computeFcJc(currentTime == 0);
+        m_contactPotentialIMC->computeFcJc(currentTime < wait_time);
 
         // Compute norm of the force equations.
         normf = 0;
@@ -415,33 +414,35 @@ void world::lineSearch() {
         m_twistingForce->computeFt();
         m_gravityForce->computeFg();
         m_dampingForce->computeFd();
-        m_contactPotentialIMC->computeFc(currentTime == 0);
+        m_collisionDetector->detectCollisions();
+        m_contactPotentialIMC->computeFc(currentTime < wait_time);
 
         double q = 0.5 * pow(stepper->Force.norm(), 2);
 
         double slope = (q - q0) / a;
 
-        // cout << slope<<" "<<dq0<<" "<<a<<endl;
-
         if (slope >= m2 * dq0 && slope <= m1 * dq0) {
             success = true;
-        } else {
+        }
+        else {
             if (slope < m2 * dq0) {
                 al = a;
-            } else {
+            }
+            else {
                 au = a;
             }
 
             if (au < amax) {
                 a = 0.5 * (al + au);
-            } else {
+            }
+            else {
                 a = 10 * a;
             }
         }
         if (a > amax || a < amin) {
             break;
         }
-        if (iter_l > 20) {
+        if (iter_l > 100) {
             break;
         }
         iter_l++;

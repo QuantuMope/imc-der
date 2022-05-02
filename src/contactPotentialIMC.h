@@ -9,11 +9,11 @@ class contactPotentialIMC
 {
 public:
     contactPotentialIMC(elasticRod &m_rod, timeStepper &m_stepper, collisionDetector &m_col_detector,
-                        int m_ce_k, int m_friction, double m_mu, double m_vel_tol);
+                        double m_delta, double m_mu, double m_nu);
 
     void updateContactStiffness();
-    void computeFc(bool first_iter);
-    void computeFcJc(bool first_iter);
+    void computeFc(bool waitTime);
+    void computeFcJc(bool waitTime);
     double contact_stiffness;
 
 private:
@@ -21,17 +21,31 @@ private:
     timeStepper* stepper;
     collisionDetector* col_detector;
     symbolicEquations* sym_eqs;
-    int ce_k;
+    double K1;
+    double K2;
     double h2;
+    double delta;
     bool friction;
     double mu;
-    double vel_tol;
+    double nu;
     double scale;
+    int fric_jaco_type;
 
     // Index helper
     vector<double> di{0, 1, 2, 4, 5, 6};
 
-    Vector<double, 14> contact_input;
+    Vector<double, 8> p2p_input;
+    Vector<double, 11> e2p_input;
+    Vector<double, 14> e2e_input;
+
+    Vector<double, 6> p2p_gradient;
+    Vector<double, 9> e2p_gradient;
+    Vector<double, 12> e2e_gradient;
+
+    Matrix<double, 6, 6> p2p_hessian;
+    Matrix<double, 9, 9> e2p_hessian;
+    Matrix<double, 12, 12> e2e_hessian;
+
     Vector<double, 39> friction_input;
     Vector<double, 12> contact_gradient;
     Vector<double, 12> friction_forces;
@@ -40,7 +54,7 @@ private:
     Matrix<double, 12, 12> friction_partials_dfr_dfc;
     Matrix<double, 12, 12> friction_jacobian;
 
-    void prepContactInput(int e1, int e2);
-    void prepFrictionInput(int e1, int e2);
-    void computeFriction(int e1, int e2);
+    void prepContactInput(int edge1, int edge2, int edge3, int edge4, int constraintType);
+    void prepFrictionInput(int edge1, int edge2, int edge3, int edge4);
+    void computeFriction(const int edge1,const int edge2,const int edge3,const int edge4);
 };
