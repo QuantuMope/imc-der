@@ -59,19 +59,23 @@ private:
     Matrix<double, 12, 12> friction_jacobian;
 
     Matrix<double, 3, 12> dtv_rel_dfc;
+    Matrix<double, 12, 3> dtv_rel_dfc_T;
     Matrix<double, 3, 12> dtv_rel_dx;
+    Matrix<double, 12, 3> dtv_rel_dx_T;
     Vector<double, 1> dgamma_dtv_rel_n;
     Vector<double, 2> dgamma_input;
 
     Matrix<double, 12, 1> dfr_dgamma;
     Matrix<double, 12, 3> dfr_dtv_rel_u;
+    Matrix<double, 3, 12> dfr_dtv_rel_u_T;
     Matrix<double, 12, 12> dfr_dfc;
 
     Matrix<double, 3, 12> dtv_rel_dx_cr;
     Matrix<double, 3, 12> dtv_rel_u_dx_cr;
     Matrix<double, 1, 12> dgamma_dx_cr;
 
-    Vector<double, 3> tv_rel_u;
+    Matrix<double, 3, 1> tv_rel;
+    Matrix<double, 3, 1> tv_rel_u;
     double tv_rel_n;
 
     void compute_dgamma_dx();
