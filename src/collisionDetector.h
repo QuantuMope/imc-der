@@ -8,7 +8,7 @@ class collisionDetector
 public:
     collisionDetector(elasticRod &m_rod, timeStepper &m_stepper, double m_delta, double m_col_limit);
 
-    void constructCandidateSet();
+    bool constructCandidateSet();
     void detectCollisions();
 
     MatrixXi edge_ids;
@@ -27,6 +27,7 @@ private:
     double contact_limit;
     double candidate_limit;
     double numerical_limit;
+    double surface_limit;
 
     void fixbound(double &x);
     void computeMinDistance(const Vector3d &v1s, const Vector3d &v1e, const Vector3d &v2s, const Vector3d &v2e, double& dist);

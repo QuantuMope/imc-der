@@ -11,6 +11,7 @@ collisionDetector::collisionDetector(elasticRod &m_rod, timeStepper &m_stepper, 
     contact_limit = scale * (2 * rod->rodRadius + delta);
     candidate_limit = scale * (2 * rod->rodRadius + col_limit);
     numerical_limit = scale * (2 * rod->rodRadius - delta);
+    surface_limit = scale * 2 * rod->rodRadius;
 
     num_edge_combos = 0;
     int ignore_adjacent = 3;  // Here, we assume that no edge can collide with the next 3 adjacent edges on either side
@@ -168,7 +169,7 @@ void collisionDetector::computeMinDistance(int &idx1, int &idx2, int &idx3, int 
 }
 
 
-void collisionDetector::constructCandidateSet() {
+bool collisionDetector::constructCandidateSet() {
     int edge1, edge2;
     double curr_dist;
     min_dist = 1e10;  // something arbitrarily large
@@ -180,6 +181,9 @@ void collisionDetector::constructCandidateSet() {
         computeMinDistance(rod->getVertex(edge1) * scale, rod->getVertex(edge1+1) * scale,
                            rod->getVertex(edge2) * scale, rod->getVertex(edge2+1) * scale, curr_dist);
 
+        if (curr_dist < surface_limit) {
+            return false;
+        }
         if (curr_dist < min_dist) {
             min_dist = curr_dist;
         }
@@ -188,6 +192,7 @@ void collisionDetector::constructCandidateSet() {
         }
     }
     min_dist /= scale;
+    return true;
 }
 
 

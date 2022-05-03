@@ -223,7 +223,6 @@ void world::updateTimeStep() {
 
     updateBoundary();
 
-    rod->updateGuess();
     newtonMethod(solved);
 
     // calculate pull forces;
@@ -286,7 +285,14 @@ void world::newtonMethod(bool &solved) {
     double normf0 = 0;
     iter = 0;
 
-    m_collisionDetector->constructCandidateSet();
+    double curr_weight = 0.1;
+    while (true) {
+        rod->updateGuess(curr_weight);
+        if (m_collisionDetector->constructCandidateSet()) {
+            break;
+        }
+        curr_weight /= 2;
+    }
 
     while (solved == false) {
         rod->prepareForIteration();

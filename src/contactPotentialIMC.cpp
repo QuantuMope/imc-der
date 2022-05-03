@@ -73,8 +73,7 @@ void contactPotentialIMC::updateContactStiffness() {
             curr_max_force = curr_force;
         }
     }
-//    contact_stiffness = 1e5 * curr_max_force;
-    contact_stiffness = 200;
+    contact_stiffness = 1e5 * curr_max_force;
 }
 
 
@@ -224,10 +223,12 @@ void contactPotentialIMC::computeFriction(const int edge1, const int edge2, cons
         friction_forces.setZero();
         fric_jaco_type = 0;
         return;
-    } else if (tv_rel_n > nu) {
+    }
+    else if (tv_rel_n > nu) {
         gamma = 1.0;
         fric_jaco_type = 1;
-    } else {
+    }
+    else {
         gamma = (2.0 / (1 + exp(-K2 * tv_rel_n))) - 1;
         fric_jaco_type = 2;
     }

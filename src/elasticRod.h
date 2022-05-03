@@ -23,7 +23,7 @@ class elasticRod
     void computeElasticStiffness();
     void prepareForIteration();
     void updateNewtonX(double *dx, double alpha=1.0);
-    void updateGuess();
+    void updateGuess(double weight);
 
     // utility functions
     Vector3d getVertex(int k);

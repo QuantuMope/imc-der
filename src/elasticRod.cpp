@@ -476,11 +476,11 @@ void elasticRod::updateTimeStep()
     refTwist_old = refTwist;
 }
 
-void elasticRod::updateGuess()
+void elasticRod::updateGuess(double weight)
 {
     for (int c=0; c < uncons; c++)
     {
-        x[unconstrainedMap[c]] = x0[unconstrainedMap[c]] +  u[unconstrainedMap[c]] * dt;
+        x[unconstrainedMap[c]] = x0[unconstrainedMap[c]] + weight * u[unconstrainedMap[c]] * dt;
     }
 }
 
