@@ -729,8 +729,13 @@ void symbolicEquations::generateFrictionJacobianPiecewiseFunctions4() {
     DenseMatrix dfr_dtv_rel_u(12, 3);
     DenseMatrix dfr_dfc(12, 12);
     jacobian(ffr_vec, gamma, dfr_dgamma);
+
     jacobian(ffr_vec, tv_rel_u, dfr_dtv_rel_u);
     jacobian(ffr_vec, cforces, dfr_dfc);
+
+    cout << dfr_dfc << endl;
+
+
 
     dfr_dgamma_func.init(ffr_input, dfr_dgamma.as_vec_basic(), symbolic_cse, opt_level);
     dfr_dtv_rel_u_func.init(ffr_input, dfr_dtv_rel_u.as_vec_basic(), symbolic_cse, opt_level);

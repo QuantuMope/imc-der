@@ -84,4 +84,7 @@ private:
     void prepContactInput(int edge1, int edge2, int edge3, int edge4, int constraintType);
     void prepFrictionInput(int edge1, int edge2, int edge3, int edge4);
     void computeFriction(const int edge1,const int edge2,const int edge3,const int edge4);
+
+    MatrixXd computeFEM(const int edge1, const int edge2, const int edge3, const int edge4, int idx, int constraintType);
+
 };

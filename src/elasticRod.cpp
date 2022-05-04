@@ -38,7 +38,7 @@ elasticRod::elasticRod(MatrixXd initialNodes, MatrixXd undeformed,
 }
 
 void elasticRod::setup()
-{	
+{
     // compute the number of constrained and unconstrained dof
     ncons = 0;
     for (int i=0; i < ndof; i++)
@@ -190,7 +190,7 @@ void elasticRod::setMass()
         }
     }
 }
- 
+
 void elasticRod::setReferenceLength()
 {
     refLen = VectorXd(ne);
@@ -323,7 +323,7 @@ void elasticRod::computeMaterialDirector()
     // TODOder: take out cs, ss out of the function and declare them as privates in elasticRod class
     double cs,ss;
     double angle;
-    
+
     for (int i=0;i<ne;i++)
     {
         angle = x(4*i+3);
@@ -480,7 +480,6 @@ void elasticRod::updateGuess()
 {
     for (int c=0; c < uncons; c++)
     {
-//        x[unconstrainedMap[c]] = x0[unconstrainedMap[c]] +  u[unconstrainedMap[c]] * dt;
+       x[unconstrainedMap[c]] = x0[unconstrainedMap[c]] + 0.1*u[unconstrainedMap[c]] * dt;
     }
 }
-
