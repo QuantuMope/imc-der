@@ -286,12 +286,14 @@ void world::newtonMethod(bool &solved) {
     iter = 0;
 
     double curr_weight = 0.1;
+    int counter = 0;
     while (true) {
         rod->updateGuess(curr_weight);
-        if (m_collisionDetector->constructCandidateSet()) {
+        if (m_collisionDetector->constructCandidateSet() || counter > 10) {
             break;
         }
         curr_weight /= 2;
+        counter++;
     }
 
     while (solved == false) {
