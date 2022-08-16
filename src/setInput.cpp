@@ -28,6 +28,7 @@ setInput::setInput()
     AddOption("colLimit", "Limit for collision detection to be put in candidate set", col_limit);
     AddOption("knotConfig", "Initial knot configuration", knot_config);
     AddOption("delta", "Distance tolerance for contact", delta);
+    AddOption("kScaler", "Constant scaler for contact stiffness", k_scaler);
     AddOption("mu", "Coefficient of friction", mu);
     AddOption("nu", "Slipping tolerance for friction ", nu);
     AddOption("recordNodes", "Option for whether or not to record nodes", record_nodes);

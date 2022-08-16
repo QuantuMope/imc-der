@@ -16,7 +16,7 @@ and uses the subsequent energy gradient (forces) and Hessian (force Jacobian) to
 - Explicit and hybrid formulations for IMC were removed. After a Hessian chain ruling bug fix, the fully implicit version is by far superior in terms of performance.
 - Friction has been changed to a fully implicit formulation.
 - Smooth distance has been exchanged for piecewise analytical distance.
-- and more. For full updates, please refer to our new paper (**TODO: add link when available**).
+- For full updates, please refer to our new paper [here](https://arxiv.org/abs/2205.10309).
 
 ***
 
@@ -113,6 +113,7 @@ Specifiable parameters are as follows (we use SI units):
 - ```deltaTime``` - Time step size.
 - ```colLimit``` - Distance limit for inclusion in contact candidate set (*colLimit must be > delta*).
 - ```delta``` - Distance tolerance for contact.
+- ```kScaler``` - Constant scaling factor for contact stiffness.
 - ```mu``` - Friction coefficient. A value of zero turns friction off.
 - ```nu``` - Slipping tolerance for friction.
 - ```lineSearch (0 or 1)``` - Flag indicating whether line search will be used.
@@ -131,7 +132,7 @@ If this doesn't work, execute ```chmod +x run.sh``` prior to running.
 ### Citation
 If our work has helped your research, please cite the following paper.
 ```
-article{10.1115/1.4050238,
+article{choi_imc_2021,
     author = {Choi, Andrew and Tong, Dezhong and Jawed, Mohammad K. and Joo, Jungseock},
     title = "{Implicit Contact Model for Discrete Elastic Rods in Knot Tying}",
     journal = {Journal of Applied Mechanics},
@@ -140,6 +141,16 @@ article{10.1115/1.4050238,
     year = {2021},
     month = {03},
 }
+
+@misc{tong_imc_2022,
+  author = {Tong, Dezhong and Choi, Andrew and Joo, Jungseock and Jawed, M. Khalid},
+  title = {A Fully Implicit Method for Robust Frictional Contact Handling in Elastic Rods},
+  publisher = {arXiv},
+  year = {2022},
+  doi = {10.48550/ARXIV.2205.10309},
+  url = {https://arxiv.org/abs/2205.10309},
+}
+
 ```
 
 

@@ -28,6 +28,7 @@ world::world(setInput &m_inputData) {
     pull_speed = m_inputData.GetScalarOpt("pullSpeed");        // get speed of pulling
     col_limit = m_inputData.GetScalarOpt("colLimit");          // distance limit for candidate set
     delta = m_inputData.GetScalarOpt("delta");                 // distance tolerance for contact
+    k_scaler = m_inputData.GetScalarOpt("kScaler");            // constant scaler for contact stiffness
     mu = m_inputData.GetScalarOpt("mu");                       // friction coefficient
     nu = m_inputData.GetScalarOpt("nu");                       // slipping tolerance for friction
     line_search = m_inputData.GetIntOpt("lineSearch");         // flag for enabling line search
@@ -103,7 +104,7 @@ void world::CoutDataC(ofstream &outfile) {
     // Output pull forces here
     // Do not need to add endl here as it will be added when time spent is added
     outfile << currentTime << " " << f << " " << f1 << " " << radius << " " << end_to_end_length
-            << " " << iter << " " << total_iters << endl;
+            << " " << iter << " " << total_iters;
 }
 
 
@@ -139,8 +140,8 @@ void world::setRodStepper() {
     m_inertialForce = new inertialForce(*rod, *stepper);
     m_gravityForce = new externalGravityForce(*rod, *stepper, gVector);
     m_dampingForce = new dampingForce(*rod, *stepper, viscosity);
-    m_collisionDetector = new collisionDetector(*rod, *stepper, delta, col_limit);
-    m_contactPotentialIMC = new contactPotentialIMC(*rod, *stepper, *m_collisionDetector, delta, mu, nu);
+    m_collisionDetector = new collisionDetector(*rod, delta, col_limit);
+    m_contactPotentialIMC = new contactPotentialIMC(*rod, *stepper, *m_collisionDetector, delta, k_scaler, mu, nu);
 
     // Allocate every thing to prepare for the first iteration
     rod->updateTimeStep();
@@ -285,13 +286,11 @@ void world::newtonMethod(bool &solved) {
     double normf0 = 0;
     iter = 0;
 
-    double curr_weight = 0.1;
+    double curr_weight = 1.0;
     int counter = 0;
     while (true) {
         rod->updateGuess(curr_weight);
-        if (m_collisionDetector->constructCandidateSet() || counter > 10) {
-            break;
-        }
+        if (m_collisionDetector->constructCandidateSet(counter > 10)) break;
         curr_weight /= 2;
         counter++;
     }
@@ -325,7 +324,7 @@ void world::newtonMethod(bool &solved) {
             m_contactPotentialIMC->updateContactStiffness();
         }
 
-        m_contactPotentialIMC->computeFcJc(currentTime < wait_time);
+        m_contactPotentialIMC->computeFcJc();
 
         // Compute norm of the force equations.
         normf = 0;
@@ -381,7 +380,7 @@ int world::numPoints() {
 }
 
 double world::getScaledCoordinate(int i) {
-    return rod->x[i] / (0.325 * RodLength);
+    return rod->x[i] / (0.20 * RodLength);
 }
 
 double world::getCurrentTime() {
@@ -423,7 +422,7 @@ void world::lineSearch() {
         m_gravityForce->computeFg();
         m_dampingForce->computeFd();
         m_collisionDetector->detectCollisions();
-        m_contactPotentialIMC->computeFc(currentTime < wait_time);
+        m_contactPotentialIMC->computeFc();
 
         double q = 0.5 * pow(stepper->Force.norm(), 2);
 

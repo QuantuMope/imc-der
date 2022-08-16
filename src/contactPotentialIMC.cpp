@@ -2,12 +2,13 @@
 
 
 contactPotentialIMC::contactPotentialIMC(elasticRod &m_rod, timeStepper &m_stepper, collisionDetector &m_col_detector,
-                                         double m_delta, double m_mu, double m_nu) {
+                                         double m_delta, double m_k_scaler, double m_mu, double m_nu) {
     rod = &m_rod;
     stepper = &m_stepper;
     col_detector = &m_col_detector;
 
     delta = m_delta;
+    k_scaler = m_k_scaler;
     mu = m_mu;
     nu = m_nu;
     friction = mu > 0.0;
@@ -32,29 +33,31 @@ contactPotentialIMC::contactPotentialIMC(elasticRod &m_rod, timeStepper &m_stepp
     friction_input[37] = rod->dt;
     friction_input[38] = K2;
 
+    friction_zero_matrix.setZero();
+
     sym_eqs = new symbolicEquations();
-    sym_eqs->generateContactPotentialPiecewiseFunctions1();
-    sym_eqs->generateContactPotentialPiecewiseFunctions2();
+    sym_eqs->generateContactPotentialPiecewiseFunctions();
     if (friction) {
-        sym_eqs->generateFrictionJacobianPiecewiseFunctions1();
-        sym_eqs->generateFrictionJacobianPiecewiseFunctions2();
+        sym_eqs->generateFrictionJacobianPiecewiseFunctions();
     }
 }
 
 
 void contactPotentialIMC::updateContactStiffness() {
-    if (col_detector->candidateSet.size() == 0) return;
+    if (col_detector->candidate_set.size() == 0) return;
     double curr_max_force = -1;
     double curr_force;
     double fx, fy, fz;
+    double ratio = 0.9;
+    static bool initialized = false;
     set<int> nodes_to_check;
 
     // Compute the maximum force that a node experiences.
-    for (int i = 0; i < col_detector->candidateSet.size(); i++) {
-        nodes_to_check.insert(col_detector->candidateSet[i][0]);
-        nodes_to_check.insert(col_detector->candidateSet[i][0]+1);
-        nodes_to_check.insert(col_detector->candidateSet[i][1]);
-        nodes_to_check.insert(col_detector->candidateSet[i][1]+1);
+    for (int i = 0; i < col_detector->candidate_set.size(); i++) {
+        nodes_to_check.insert(col_detector->candidate_set[i][0]);
+        nodes_to_check.insert(col_detector->candidate_set[i][0]+1);
+        nodes_to_check.insert(col_detector->candidate_set[i][1]);
+        nodes_to_check.insert(col_detector->candidate_set[i][1]+1);
     }
 
     for (auto i : nodes_to_check) {
@@ -73,17 +76,24 @@ void contactPotentialIMC::updateContactStiffness() {
             curr_max_force = curr_force;
         }
     }
-    contact_stiffness = 1e5 * curr_max_force;
+
+    if (!initialized) {
+        contact_stiffness = k_scaler * curr_max_force;
+        initialized = true;
+    }
+    else {
+        contact_stiffness = ratio * contact_stiffness + (1 - ratio) * k_scaler * curr_max_force;
+    }
 }
 
 
-void contactPotentialIMC::prepContactInput(int edge1, int edge2, int edge3, int edge4, int constraintType) {
-    Vector3d x1s = scale * rod->getVertex(edge1);
-    Vector3d x1e = scale * rod->getVertex(edge3);
-    Vector3d x2s = scale * rod->getVertex(edge2);
-    Vector3d x2e = scale * rod->getVertex(edge4);
+void contactPotentialIMC::prepContactInput() {
+    Vector3d x1s = scale * rod->getVertex(idx1);
+    Vector3d x1e = scale * rod->getVertex(idx3);
+    Vector3d x2s = scale * rod->getVertex(idx2);
+    Vector3d x2e = scale * rod->getVertex(idx4);
 
-    if (constraintType == 0) //p2p
+    if (constraint_type == PointToPoint)
     {
         p2p_input[0] = x1s(0);
         p2p_input[1] = x1s(1);
@@ -93,7 +103,7 @@ void contactPotentialIMC::prepContactInput(int edge1, int edge2, int edge3, int 
         p2p_input[4] = x2s(1);
         p2p_input[5] = x2s(2);
     }
-    else if (constraintType == 1) //e2p
+    else if (constraint_type == PointToEdge)
     {
         e2p_input[0] = x1s(0);
         e2p_input[1] = x1s(1);
@@ -105,7 +115,7 @@ void contactPotentialIMC::prepContactInput(int edge1, int edge2, int edge3, int 
         e2p_input[7] = x2s(1);
         e2p_input[8] = x2s(2);
     }
-    else if (constraintType == 2) //e2e
+    else if (constraint_type == EdgeToEdge)
     {
         e2e_input[0] = x1s(0);
         e2e_input[1] = x1s(1);
@@ -123,15 +133,15 @@ void contactPotentialIMC::prepContactInput(int edge1, int edge2, int edge3, int 
 }
 
 
-void contactPotentialIMC::prepFrictionInput(const int edge1, const int edge2, const int edge3, const int edge4) {
-    Vector3d x1s = rod->getVertex(edge1);
-    Vector3d x1e = rod->getVertex(edge3);
-    Vector3d x2s = rod->getVertex(edge2);
-    Vector3d x2e = rod->getVertex(edge4);
-    Vector3d x1s0 = rod->getPreVertex(edge1);
-    Vector3d x1e0 = rod->getPreVertex(edge3);
-    Vector3d x2s0 = rod->getPreVertex(edge2);
-    Vector3d x2e0 = rod->getPreVertex(edge4);
+void contactPotentialIMC::prepFrictionInput() {
+    Vector3d x1s = rod->getVertex(idx1);
+    Vector3d x1e = rod->getVertex(idx3);
+    Vector3d x2s = rod->getVertex(idx2);
+    Vector3d x2e = rod->getVertex(idx4);
+    Vector3d x1s0 = rod->getPreVertex(idx1);
+    Vector3d x1e0 = rod->getPreVertex(idx3);
+    Vector3d x2s0 = rod->getPreVertex(idx2);
+    Vector3d x2e0 = rod->getPreVertex(idx4);
 
     friction_input[0] = x1s(0);
     friction_input[1] = x1s(1);
@@ -172,15 +182,15 @@ void contactPotentialIMC::prepFrictionInput(const int edge1, const int edge2, co
 }
 
 
-void contactPotentialIMC::computeFriction(const int edge1, const int edge2, const int edge3, const int edge4) {
-    Vector3d x1s = rod->getVertex(edge1);
-    Vector3d x1e = rod->getVertex(edge3);
-    Vector3d x2s = rod->getVertex(edge2);
-    Vector3d x2e = rod->getVertex(edge4);
-    Vector3d x1s0 = rod->getPreVertex(edge1);
-    Vector3d x1e0 = rod->getPreVertex(edge3);
-    Vector3d x2s0 = rod->getPreVertex(edge2);
-    Vector3d x2e0 = rod->getPreVertex(edge4);
+void contactPotentialIMC::computeFriction() {
+    Vector3d x1s = rod->getVertex(idx1);
+    Vector3d x1e = rod->getVertex(idx3);
+    Vector3d x2s = rod->getVertex(idx2);
+    Vector3d x2e = rod->getVertex(idx4);
+    Vector3d x1s0 = rod->getPreVertex(idx1);
+    Vector3d x1e0 = rod->getPreVertex(idx3);
+    Vector3d x2s0 = rod->getPreVertex(idx2);
+    Vector3d x2e0 = rod->getPreVertex(idx4);
     Vector3d f1s = contact_gradient(seq(0, 2));
     Vector3d f1e = contact_gradient(seq(3, 5));
     Vector3d f2s = contact_gradient(seq(6, 8));
@@ -221,16 +231,16 @@ void contactPotentialIMC::computeFriction(const int edge1, const int edge2, cons
     Vector3d tv_rel_u;
     if (tv_rel_n == 0) {
         friction_forces.setZero();
-        fric_jaco_type = 0;
+        friction_type = ZeroVel;
         return;
     }
     else if (tv_rel_n > nu) {
         gamma = 1.0;
-        fric_jaco_type = 1;
+        friction_type = Sliding;
     }
     else {
         gamma = (2.0 / (1 + exp(-K2 * tv_rel_n))) - 1;
-        fric_jaco_type = 2;
+        friction_type = Sticking;
     }
     tv_rel_u = tv_rel / tv_rel_n;
 
@@ -243,21 +253,23 @@ void contactPotentialIMC::computeFriction(const int edge1, const int edge2, cons
 }
 
 
-void contactPotentialIMC::computeFc(bool waitTime) {
-    int edge1, edge2, edge3, edge4, constraintType;
+void contactPotentialIMC::computeFc() {
+    static bool first_iter = true;
     for (int i = 0; i < col_detector->num_collisions; i++) {
-        edge1 = col_detector->contact_ids(i, 0);
-        edge2 = col_detector->contact_ids(i, 1);
-        constraintType = col_detector->contact_ids(i, 2);
-        edge3 = col_detector->contact_ids(i, 3);
-        edge4 = col_detector->contact_ids(i, 4);
+        idx1 = col_detector->contact_ids(i, 0);
+        idx2 = col_detector->contact_ids(i, 1);
+        idx3 = col_detector->contact_ids(i, 2);
+        idx4 = col_detector->contact_ids(i, 3);
 
-        prepContactInput(edge1, edge2, edge3, edge4, constraintType);
+        constraint_type = static_cast<ConstraintType>(col_detector->contact_ids(i, 4));
+        contact_type = static_cast<ContactPiecewise>(col_detector->contact_ids(i, 5));
+
+        prepContactInput();
         contact_gradient.setZero();
 
-        if (constraintType == 0)
+        if (constraint_type == PointToPoint)
         {
-            if (col_detector->contact_ids(i, 5) == 0) {
+            if (contact_type == NonPenetrated) {
                 sym_eqs->E_p2p_gradient_func.call(p2p_gradient.data(), p2p_input.data());
             }
             else {
@@ -269,9 +281,9 @@ void contactPotentialIMC::computeFc(bool waitTime) {
             contact_gradient(seq(6, 8)) = p2p_gradient(seq(3, 5));
         }
 
-        if (constraintType == 1)
+        else if (constraint_type == PointToEdge)
         {
-            if (col_detector->contact_ids(i, 5) == 0) {
+            if (contact_type == NonPenetrated) {
                 sym_eqs->E_e2p_gradient_func.call(e2p_gradient.data(), e2p_input.data());
             }
             else {
@@ -284,9 +296,9 @@ void contactPotentialIMC::computeFc(bool waitTime) {
             contact_gradient(seq(6, 8)) = e2p_gradient(seq(6, 8));
         }
 
-        if (constraintType == 2)
+        else if (constraint_type == EdgeToEdge)
         {
-            if (col_detector->contact_ids(i, 5) == 0) {
+            if (contact_type == NonPenetrated) {
                 sym_eqs->E_e2e_gradient_func.call(e2e_gradient.data(), e2e_input.data());
             }
             else {
@@ -294,42 +306,45 @@ void contactPotentialIMC::computeFc(bool waitTime) {
             }
             contact_gradient = e2e_gradient;
         }
-        contact_gradient *= scale * contact_stiffness;
+        contact_gradient *= contact_stiffness;
 
         // add friction
-        if (friction && !waitTime) {
-            prepFrictionInput(edge1, edge2, edge3, edge4);
-            computeFriction(edge1, edge2, edge3, edge4);
+        if (friction && !first_iter) {
+            prepFrictionInput();
+            computeFriction();
 
             contact_gradient += friction_forces;
         }
 
         for (int e1 = 0; e1 < 3; e1++) {
-            stepper->addForce(4 * edge1 + e1, contact_gradient[e1]);
-            stepper->addForce(4 * edge3 + e1, contact_gradient[e1 + 3]);
-            stepper->addForce(4 * edge2 + e1, contact_gradient[e1 + 6]);
-            stepper->addForce(4 * edge4 + e1, contact_gradient[e1 + 9]);
+            stepper->addForce(4 * idx1 + e1, contact_gradient[e1]);
+            stepper->addForce(4 * idx3 + e1, contact_gradient[e1 + 3]);
+            stepper->addForce(4 * idx2 + e1, contact_gradient[e1 + 6]);
+            stepper->addForce(4 * idx4 + e1, contact_gradient[e1 + 9]);
         }
+        first_iter = false;
     }
 }
 
 
-void contactPotentialIMC::computeFcJc(bool waitTime) {
-    int edge1, edge2, edge3, edge4, constraintType;
+void contactPotentialIMC::computeFcJc() {
+    static bool first_iter = true;
     for (int i = 0; i < col_detector->num_collisions; i++) {
-        edge1 = col_detector->contact_ids(i, 0);
-        edge2 = col_detector->contact_ids(i, 1);
-        constraintType = col_detector->contact_ids(i, 2);
-        edge3 = col_detector->contact_ids(i, 3);
-        edge4 = col_detector->contact_ids(i, 4);
+        idx1 = col_detector->contact_ids(i, 0);
+        idx2 = col_detector->contact_ids(i, 1);
+        idx3 = col_detector->contact_ids(i, 2);
+        idx4 = col_detector->contact_ids(i, 3);
 
-        prepContactInput(edge1, edge2, edge3, edge4, constraintType);
+        constraint_type = static_cast<ConstraintType>(col_detector->contact_ids(i, 4));
+        contact_type = static_cast<ContactPiecewise>(col_detector->contact_ids(i, 5));
+
+        prepContactInput();
         contact_gradient.setZero();
         contact_hessian.setZero();
 
-        if (constraintType == 0)
+        if (constraint_type == PointToPoint)
         {
-            if (col_detector->contact_ids(i, 5) == 0) {
+            if (contact_type == NonPenetrated) {
                 sym_eqs->E_p2p_gradient_func.call(p2p_gradient.data(), p2p_input.data());
                 sym_eqs->E_p2p_hessian_func.call(p2p_hessian.data(), p2p_input.data());
             }
@@ -346,9 +361,9 @@ void contactPotentialIMC::computeFcJc(bool waitTime) {
             contact_hessian.block<3, 3>(6, 0) = p2p_hessian.block<3, 3>(3, 0);
             contact_hessian.block<3, 3>(6, 6) = p2p_hessian.block<3, 3>(3, 3);
         }
-        if (constraintType == 1)
+        else if (constraint_type == PointToEdge)
         {
-            if (col_detector->contact_ids(i, 5) == 0) {
+            if (contact_type == NonPenetrated) {
                 sym_eqs->E_e2p_gradient_func.call(e2p_gradient.data(), e2p_input.data());
                 sym_eqs->E_e2p_hessian_func.call(e2p_hessian.data(), e2p_input.data());
             }
@@ -363,9 +378,9 @@ void contactPotentialIMC::computeFcJc(bool waitTime) {
             contact_gradient(seq(6, 8)) = e2p_gradient(seq(6, 8));
             contact_hessian.block<9, 9>(0, 0) = e2p_hessian;
         }
-        if (constraintType == 2) // 0
+        else if (constraint_type == EdgeToEdge)
         {
-            if (col_detector->contact_ids(i, 5) == 0) {
+            if (contact_type == NonPenetrated) {
                 sym_eqs->E_e2e_gradient_func.call(e2e_gradient.data(), e2e_input.data());
                 sym_eqs->E_e2e_hessian_func.call(e2e_hessian.data(), e2e_input.data());
             }
@@ -377,36 +392,32 @@ void contactPotentialIMC::computeFcJc(bool waitTime) {
             contact_hessian = e2e_hessian;
         }
 
-        contact_gradient *= scale * contact_stiffness;
-        contact_hessian *= pow(scale, 2) * contact_stiffness;
+        contact_gradient *= contact_stiffness;
+        contact_hessian *= scale * contact_stiffness;
 
         // add friction
-        if (friction && !waitTime) {
-            prepFrictionInput(edge1, edge2, edge3, edge4);
-            computeFriction(edge1, edge2, edge3, edge4);
+        if (friction && !first_iter) {
+            prepFrictionInput();
+            computeFriction();
 
-            if (fric_jaco_type == 1) {
-                sym_eqs->friction_partials_gamma1_dfr_dx_func.call(friction_partials_dfr_dx.data(), friction_input.data());
-                sym_eqs->friction_partials_gamma1_dfr_dfc_func.call(friction_partials_dfr_dfc.data(), friction_input.data());
+            if (friction_type == Sliding) {
+                sym_eqs->friction_partials_dfr_dx_sliding_func.call(friction_partials_dfr_dx.data(), friction_input.data());
+                sym_eqs->friction_partials_dfr_dfc_sliding_func.call(friction_partials_dfr_dfc.data(), friction_input.data());
             }
-            else if (fric_jaco_type == 2) {
-                sym_eqs->friction_partials_dfr_dx_func.call(friction_partials_dfr_dx.data(), friction_input.data());
-                sym_eqs->friction_partials_dfr_dfc_func.call(friction_partials_dfr_dfc.data(), friction_input.data());
-            }
-
-            Matrix<double, 3, 12> zeroMatrix;
-            zeroMatrix.setZero();
-
-            if (constraintType == 0) {
-                friction_partials_dfr_dfc.block<3, 12>(3, 0) = zeroMatrix;
-                friction_partials_dfr_dfc.block<3, 12>(9, 0) = zeroMatrix;
+            else if (friction_type == Sticking) {
+                sym_eqs->friction_partials_dfr_dx_sticking_func.call(friction_partials_dfr_dx.data(), friction_input.data());
+                sym_eqs->friction_partials_dfr_dfc_sticking_func.call(friction_partials_dfr_dfc.data(), friction_input.data());
             }
 
-            if (constraintType == 1) {
-                friction_partials_dfr_dfc.block<3, 12>(9, 0) = zeroMatrix;
+            if (constraint_type == PointToPoint) {
+                friction_partials_dfr_dfc.block<3, 12>(3, 0) = friction_zero_matrix;
+                friction_partials_dfr_dfc.block<3, 12>(9, 0) = friction_zero_matrix;
+            }
+            else if (constraint_type == PointToEdge) {
+                friction_partials_dfr_dfc.block<3, 12>(9, 0) = friction_zero_matrix;
             }
 
-            if (fric_jaco_type == 0) {
+            if (friction_type == ZeroVel) {
                 friction_jacobian.setZero();
             }
             else {
@@ -418,39 +429,40 @@ void contactPotentialIMC::computeFcJc(bool waitTime) {
         }
 
         for (int e1 = 0; e1 < 3; e1++) {
-            stepper->addForce(4 * edge1 + e1, contact_gradient[e1]);
-            stepper->addForce(4 * edge3 + e1, contact_gradient[e1 + 3]);
-            stepper->addForce(4 * edge2 + e1, contact_gradient[e1 + 6]);
-            stepper->addForce(4 * edge4 + e1, contact_gradient[e1 + 9]);
+            stepper->addForce(4 * idx1 + e1, contact_gradient[e1]);
+            stepper->addForce(4 * idx3 + e1, contact_gradient[e1 + 3]);
+            stepper->addForce(4 * idx2 + e1, contact_gradient[e1 + 6]);
+            stepper->addForce(4 * idx4 + e1, contact_gradient[e1 + 9]);
         }
 
         // add hessian
         for (int i = 0; i < 3; i++) {
             for (int j = 0; j < 3; j++) {
                 // first row
-                stepper->addJacobian(4 * edge1 + i, 4 * edge1 + j, contact_hessian(j, i));
-                stepper->addJacobian(4 * edge1 + i, 4 * edge3 + j, contact_hessian(3 + j, i));
-                stepper->addJacobian(4 * edge1 + i, 4 * edge2 + j, contact_hessian(6 + j, i));
-                stepper->addJacobian(4 * edge1 + i, 4 * edge4 + j, contact_hessian(9 + j, i));
+                stepper->addJacobian(4 * idx1 + i, 4 * idx1 + j, contact_hessian(j, i));
+                stepper->addJacobian(4 * idx1 + i, 4 * idx3 + j, contact_hessian(3 + j, i));
+                stepper->addJacobian(4 * idx1 + i, 4 * idx2 + j, contact_hessian(6 + j, i));
+                stepper->addJacobian(4 * idx1 + i, 4 * idx4 + j, contact_hessian(9 + j, i));
 
                 // second row
-                stepper->addJacobian(4 * edge3 + i, 4 * edge1 + j, contact_hessian(j, 3 + i));
-                stepper->addJacobian(4 * edge3 + i, 4 * edge3 + j, contact_hessian(3 + j, 3 + i));
-                stepper->addJacobian(4 * edge3 + i, 4 * edge2 + j, contact_hessian(6 + j, 3 + i));
-                stepper->addJacobian(4 * edge3 + i, 4 * edge4 + j, contact_hessian(9 + j, 3 + i));
+                stepper->addJacobian(4 * idx3 + i, 4 * idx1 + j, contact_hessian(j, 3 + i));
+                stepper->addJacobian(4 * idx3 + i, 4 * idx3 + j, contact_hessian(3 + j, 3 + i));
+                stepper->addJacobian(4 * idx3 + i, 4 * idx2 + j, contact_hessian(6 + j, 3 + i));
+                stepper->addJacobian(4 * idx3 + i, 4 * idx4 + j, contact_hessian(9 + j, 3 + i));
 
                 // third row
-                stepper->addJacobian(4 * edge2 + i, 4 * edge1 + j, contact_hessian(j, 6 + i));
-                stepper->addJacobian(4 * edge2 + i, 4 * edge3 + j, contact_hessian(3 + j, 6 + i));
-                stepper->addJacobian(4 * edge2 + i, 4 * edge2 + j, contact_hessian(6 + j, 6 + i));
-                stepper->addJacobian(4 * edge2 + i, 4 * edge4 + j, contact_hessian(9 + j, 6 + i));
+                stepper->addJacobian(4 * idx2 + i, 4 * idx1 + j, contact_hessian(j, 6 + i));
+                stepper->addJacobian(4 * idx2 + i, 4 * idx3 + j, contact_hessian(3 + j, 6 + i));
+                stepper->addJacobian(4 * idx2 + i, 4 * idx2 + j, contact_hessian(6 + j, 6 + i));
+                stepper->addJacobian(4 * idx2 + i, 4 * idx4 + j, contact_hessian(9 + j, 6 + i));
 
                 // forth row
-                stepper->addJacobian(4 * edge4 + i, 4 * edge1 + j, contact_hessian(j, 9 + i));
-                stepper->addJacobian(4 * edge4 + i, 4 * edge3 + j, contact_hessian(3 + j, 9 + i));
-                stepper->addJacobian(4 * edge4 + i, 4 * edge2 + j, contact_hessian(6 + j, 9 + i));
-                stepper->addJacobian(4 * edge4 + i, 4 * edge4 + j, contact_hessian(9 + j, 9 + i));
+                stepper->addJacobian(4 * idx4 + i, 4 * idx1 + j, contact_hessian(j, 9 + i));
+                stepper->addJacobian(4 * idx4 + i, 4 * idx3 + j, contact_hessian(3 + j, 9 + i));
+                stepper->addJacobian(4 * idx4 + i, 4 * idx2 + j, contact_hessian(6 + j, 9 + i));
+                stepper->addJacobian(4 * idx4 + i, 4 * idx4 + j, contact_hessian(9 + j, 9 + i));
             }
         }
+        first_iter = false;
     }
 }

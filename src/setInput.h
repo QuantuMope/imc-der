@@ -61,6 +61,7 @@ private:
     double pull_speed;
     double col_limit;
     double delta;
+    double k_scaler;
     double mu;
     double nu;
     int record_nodes;

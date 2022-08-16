@@ -1,9 +1,8 @@
 #include "collisionDetector.h"
 
 
-collisionDetector::collisionDetector(elasticRod &m_rod, timeStepper &m_stepper, double m_delta, double m_col_limit) {
+collisionDetector::collisionDetector(elasticRod &m_rod, double m_delta, double m_col_limit) {
     rod = &m_rod;
-    stepper = &m_stepper;
     delta = m_delta;
     col_limit = m_col_limit;
     scale = 1 / rod->rodRadius;
@@ -80,7 +79,7 @@ void collisionDetector::computeMinDistance(const Vector3d &x1s, const Vector3d &
 }
 
 
-void collisionDetector::computeMinDistance(int &idx1, int &idx2, int &idx3, int &idx4, double &dist, int &constraintType) {
+void collisionDetector::computeMinDistance(int &idx1, int &idx2, int &idx3, int &idx4, double &dist, ConstraintType &constraint_type) {
 
     Vector3d x1s = rod->getVertex(idx1) * scale;
     Vector3d x1e = rod->getVertex(idx1+1) * scale;
@@ -128,7 +127,7 @@ void collisionDetector::computeMinDistance(int &idx1, int &idx2, int &idx3, int 
             idx4 = idx2;
             idx2 = idx2 + 1;
         };
-        constraintType = 0;
+        constraint_type = PointToPoint;
     } else // p2e
     {
         if (t == 0 || t == 1 || uf == 0 || uf == 1) //p2e
@@ -157,11 +156,11 @@ void collisionDetector::computeMinDistance(int &idx1, int &idx2, int &idx3, int 
                 idx3 = idx1 + 1;
                 idx4 = idx2 - 1;
             }
-            constraintType = 1;
+            constraint_type = PointToEdge;
         } else {
             idx3 = idx1 + 1;
             idx4 = idx2 + 1;
-            constraintType = 2;
+            constraint_type = EdgeToEdge;
         }
 
     }
@@ -169,11 +168,11 @@ void collisionDetector::computeMinDistance(int &idx1, int &idx2, int &idx3, int 
 }
 
 
-bool collisionDetector::constructCandidateSet() {
+bool collisionDetector::constructCandidateSet(bool ignore_escape) {
     int edge1, edge2;
     double curr_dist;
     min_dist = 1e10;  // something arbitrarily large
-    candidateSet.clear();
+    candidate_set.clear();
 
     for (int i = 0; i < num_edge_combos; i++) {
         edge1 = edge_ids(i, 0);
@@ -181,14 +180,14 @@ bool collisionDetector::constructCandidateSet() {
         computeMinDistance(rod->getVertex(edge1) * scale, rod->getVertex(edge1+1) * scale,
                            rod->getVertex(edge2) * scale, rod->getVertex(edge2+1) * scale, curr_dist);
 
-        if (curr_dist < surface_limit) {
+        if (curr_dist < surface_limit && !ignore_escape) {
             return false;
         }
         if (curr_dist < min_dist) {
             min_dist = curr_dist;
         }
         if (curr_dist < candidate_limit) {
-            candidateSet.push_back(Vector2i(edge1, edge2));
+            candidate_set.push_back(Vector2i(edge1, edge2));
         }
     }
     min_dist /= scale;
@@ -197,27 +196,23 @@ bool collisionDetector::constructCandidateSet() {
 
 
 void collisionDetector::detectCollisions() {
-    int edge1, edge2, edge3, edge4, constraintType;
+    int idx1, idx2, idx3, idx4;
+    ConstraintType constraint_type;
     double curr_dist;
     int j = 0;
 
-    for (int i = 0; i < candidateSet.size(); i++) {
-        edge1 = candidateSet[i][0];
-        edge2 = candidateSet[i][1];
-        computeMinDistance(edge1, edge2, edge3, edge4, curr_dist, constraintType);
+    for (int i = 0; i < candidate_set.size(); i++) {
+        idx1 = candidate_set[i][0];
+        idx2 = candidate_set[i][1];
+        computeMinDistance(idx1, idx2, idx3, idx4, curr_dist, constraint_type);
 
         if (curr_dist < contact_limit) {
-            contact_ids(j, 0) = edge1;
-            contact_ids(j, 1) = edge2;
-            contact_ids(j, 2) = constraintType;
-            contact_ids(j, 3) = edge3;
-            contact_ids(j, 4) = edge4;
-            if (curr_dist < numerical_limit) {
-                contact_ids(j, 5) = 1;
-            }
-            else {
-                contact_ids(j, 5) = 0;
-            }
+            contact_ids(j, 0) = idx1;
+            contact_ids(j, 1) = idx2;
+            contact_ids(j, 2) = idx3;
+            contact_ids(j, 3) = idx4;
+            contact_ids(j, 4) = constraint_type;
+            contact_ids(j, 5) = (curr_dist > numerical_limit) ? NonPenetrated : Penetrated;
             j++;
         }
     }

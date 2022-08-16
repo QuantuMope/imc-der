@@ -1,19 +1,23 @@
+#ifndef CONTACTPOTENTIALIMC_H
+#define CONTACTPOTENTIALIMC_H
+
 #include "eigenIncludes.h"
 #include "elasticRod.h"
 #include "timeStepper.h"
 #include "collisionDetector.h"
 #include "symbolicEquations.h"
+#include "contactEnums.h"
 
 
 class contactPotentialIMC
 {
 public:
     contactPotentialIMC(elasticRod &m_rod, timeStepper &m_stepper, collisionDetector &m_col_detector,
-                        double m_delta, double m_mu, double m_nu);
+                        double m_delta, double m_k_scaler, double m_mu, double m_nu);
 
     void updateContactStiffness();
-    void computeFc(bool waitTime);
-    void computeFcJc(bool waitTime);
+    void computeFc();
+    void computeFcJc();
     double contact_stiffness;
 
 private:
@@ -25,11 +29,18 @@ private:
     double K2;
     double h2;
     double delta;
+    double k_scaler;
     bool friction;
     double mu;
     double nu;
     double scale;
-    int fric_jaco_type;
+    int idx1;
+    int idx2;
+    int idx3;
+    int idx4;
+    ConstraintType constraint_type;
+    FrictionType friction_type;
+    ContactPiecewise contact_type;
 
     // Index helper
     vector<double> di{0, 1, 2, 4, 5, 6};
@@ -53,8 +64,11 @@ private:
     Matrix<double, 12, 12> friction_partials_dfr_dx;
     Matrix<double, 12, 12> friction_partials_dfr_dfc;
     Matrix<double, 12, 12> friction_jacobian;
+    Matrix<double, 3, 12> friction_zero_matrix;
 
-    void prepContactInput(int edge1, int edge2, int edge3, int edge4, int constraintType);
-    void prepFrictionInput(int edge1, int edge2, int edge3, int edge4);
-    void computeFriction(const int edge1,const int edge2,const int edge3,const int edge4);
+    void prepContactInput();
+    void prepFrictionInput();
+    void computeFriction();
 };
+
+#endif

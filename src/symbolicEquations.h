@@ -9,10 +9,8 @@ class symbolicEquations
 public:
     symbolicEquations();
 
-    void generateContactPotentialPiecewiseFunctions1();
-    void generateContactPotentialPiecewiseFunctions2();
-    void generateFrictionJacobianPiecewiseFunctions1();
-    void generateFrictionJacobianPiecewiseFunctions2();
+    void generateContactPotentialPiecewiseFunctions();
+    void generateFrictionJacobianPiecewiseFunctions();
 
     LLVMDoubleVisitor E_p2p_gradient_func;
     LLVMDoubleVisitor E_p2p_hessian_func;
@@ -28,10 +26,10 @@ public:
     LLVMDoubleVisitor E_e2e_pen_gradient_func;
     LLVMDoubleVisitor E_e2e_pen_hessian_func;
 
-    LLVMDoubleVisitor friction_partials_dfr_dx_func;
-    LLVMDoubleVisitor friction_partials_dfr_dfc_func;
-    LLVMDoubleVisitor friction_partials_gamma1_dfr_dx_func;
-    LLVMDoubleVisitor friction_partials_gamma1_dfr_dfc_func;
+    LLVMDoubleVisitor friction_partials_dfr_dx_sticking_func;
+    LLVMDoubleVisitor friction_partials_dfr_dfc_sticking_func;
+    LLVMDoubleVisitor friction_partials_dfr_dx_sliding_func;
+    LLVMDoubleVisitor friction_partials_dfr_dfc_sliding_func;
 
 private:
     bool symbolic_cse;
