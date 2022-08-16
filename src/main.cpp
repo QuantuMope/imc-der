@@ -29,9 +29,8 @@ clock_t start;
 clock_t finish;
 double time_taken;
 
-int record_nodes;
-double record_nodes_start;
-double record_nodes_end;
+bool record_data;
+bool record_nodes;
 
 
 static void Key(unsigned char key, int x, int y)
@@ -63,18 +62,16 @@ void simulate() {
 
     if (myWorld.pulling())
     {
-        // Record contact data
-        myWorld.CoutDataC(pull_data);
-
-        // Record time taken to complete one time step
-        time_taken = double(finish - start) / double(CLOCKS_PER_SEC);
-        pull_data << time_taken << endl;
-
-        if (record_nodes) {
-            if (record_nodes_start < myWorld.getCurrentTime() && myWorld.getCurrentTime() < record_nodes_end) {
-                myWorld.outputNodeCoordinates(node_data);
+        if (record_data) {
+            // Record contact data
+            if (myWorld.CoutDataC(pull_data)) {
+                // Record time taken to complete one time step
+                time_taken = double(finish - start) / double(CLOCKS_PER_SEC);
+                pull_data << time_taken << endl;
             }
         }
+
+        if (record_nodes) myWorld.outputNodeCoordinates(node_data);
     }
 }
 
@@ -137,13 +134,11 @@ int main(int argc,char *argv[])
     myWorld = world(inputData);
     myWorld.setRodStepper();
 
-    myWorld.OpenFile(pull_data, "pull_data");
-    record_nodes = inputData.GetIntOpt("recordNodes");
-    record_nodes_start = inputData.GetScalarOpt("recordNodesStart");
-    record_nodes_end = inputData.GetScalarOpt("recordNodesEnd");
-    if (record_nodes) {
-        myWorld.OpenFile(node_data, "node_data");
-    }
+    record_data = inputData.GetBoolOpt("saveData");
+    record_nodes = inputData.GetBoolOpt("recordNodes");
+
+    if (record_data) myWorld.OpenFile(pull_data, "pull_data");
+    if (record_nodes) myWorld.OpenFile(node_data, "node_data");
 
     if (myWorld.isRender()) // if OpenGL visualization is on
     {
@@ -168,7 +163,8 @@ int main(int argc,char *argv[])
     }
 
     // Close (if necessary) the data file
-    myWorld.CloseFile(pull_data);
+    if (record_data) myWorld.CloseFile(pull_data);
+    if (record_nodes) myWorld.CloseFile(node_data);
     exit(0);
 }
 

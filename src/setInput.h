@@ -55,6 +55,8 @@ private:
     double viscosity;
     bool render;
     bool saveData;
+    bool record_nodes;
+    double data_resolution;
     double pull_time;
     double release_time;
     double wait_time;
@@ -64,9 +66,6 @@ private:
     double k_scaler;
     double mu;
     double nu;
-    int record_nodes;
-    double record_nodes_start;
-    double record_nodes_end;
     string knot_config;
     int line_search;
 };

@@ -100,12 +100,11 @@ Specifiable parameters are as follows (we use SI units):
 - ```tol``` and ```stol``` - Small numbers used in solving the linear system. Fraction of a percent, e.g. 1.0e-3, is often a good choice.
 - ```maxIter``` - Maximum number of iterations allowed before the solver quits. 
 - ```gVector``` - 3x1 vector specifying acceleration due to gravity.
-- ```viscosity``` - Viscosity of the fluid medium.
+- ```viscosity``` - Viscosity for applying damping forces.
 - ```render (0 or 1) ```- Flag indicating whether OpenGL visualization should be rendered.
 - ```saveData (0 or 1)``` - Flag indicating whether pull forces and rod end positions should be reocrded.
 - ```recordNodes (0 or 1)``` - Flag indicating whether nodal positions will be recorded.
-- ```recordNodesStart``` - Start time for node recording (*ignored if ```recordNodes``` is 0*).
-- ```recordNodesEnd``` - End time for node recording (*ignored if ```recordNodes``` is 0*).
+- ```dataResolution``` - Rate of data recording in seconds. Applies to both ```saveData``` and ```recordNodes```.
 - ```waitTime``` - Initial wait period duration.
 - ```pullTime``` - Duration to pull for (*starts after ```waitTime``` is done*).
 - ```releaseTime``` - Duration to loosen for (*starts after ```waitTime``` + ```pullTime``` is done*).

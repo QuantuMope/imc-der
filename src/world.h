@@ -45,7 +45,7 @@ public:
     void OpenFile(ofstream &outfile, string filename);
     void CloseFile(ofstream &outfile);
     void outputNodeCoordinates(ofstream &outfile);
-    void CoutDataC(ofstream &outfile);
+    bool CoutDataC(ofstream &outfile);
 
     void updateTimeStep_data();
 
@@ -73,6 +73,8 @@ private:
     double k_scaler;
     double mu;
     double nu;
+    double data_resolution;
+    int data_rate;
     int line_search;
     string knot_config;
     double alpha;
@@ -95,6 +97,7 @@ private:
     double *dx;
     double *ls_nodes;
     double currentTime;
+    int timeStep;
     double totalTime;
 
     // declare the forces
@@ -124,7 +127,6 @@ private:
     void lineSearch();
 
     bool render; // should the OpenGL rendering be included?
-    bool saveData; // should data be written to a file?
 
     Vector3d temp;
     Vector3d temp1;

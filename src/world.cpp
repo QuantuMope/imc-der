@@ -5,41 +5,41 @@ world::world() {
 }
 
 world::world(setInput &m_inputData) {
-    render = m_inputData.GetBoolOpt("render");                // boolean
-    saveData = m_inputData.GetBoolOpt("saveData");            // boolean
+    render = m_inputData.GetBoolOpt("render");                       // boolean
+    RodLength = m_inputData.GetScalarOpt("RodLength");               // meter
+    helixradius = m_inputData.GetScalarOpt("helixradius");           // meter
+    gVector = m_inputData.GetVecOpt("gVector");                            // m/s^2
+    maxIter = m_inputData.GetIntOpt("maxIter");                      // maximum number of iterations
+    helixpitch = m_inputData.GetScalarOpt("helixpitch");             // meter
+    rodRadius = m_inputData.GetScalarOpt("rodRadius");               // meter
+    numVertices = m_inputData.GetIntOpt("numVertices");              // int_num
+    youngM = m_inputData.GetScalarOpt("youngM");                     // Pa
+    Poisson = m_inputData.GetScalarOpt("Poisson");                   // dimensionless
+    deltaTime = m_inputData.GetScalarOpt("deltaTime");               // seconds
+    tol = m_inputData.GetScalarOpt("tol");                           // small number like 10e-7
+    stol = m_inputData.GetScalarOpt("stol");                         // small number, e.g. 0.1%
+    density = m_inputData.GetScalarOpt("density");                   // kg/m^3
+    viscosity = m_inputData.GetScalarOpt("viscosity");               // viscosity in Pa-s
+    data_resolution = m_inputData.GetScalarOpt("dataResolution");    // time resolution for recording data
+    pull_time = m_inputData.GetScalarOpt("pullTime");                // get time of pulling
+    release_time = m_inputData.GetScalarOpt("releaseTime");          // get time of loosening
+    wait_time = m_inputData.GetScalarOpt("waitTime");                // get time of waiting
+    pull_speed = m_inputData.GetScalarOpt("pullSpeed");              // get speed of pulling
+    col_limit = m_inputData.GetScalarOpt("colLimit");                // distance limit for candidate set
+    delta = m_inputData.GetScalarOpt("delta");                       // distance tolerance for contact
+    k_scaler = m_inputData.GetScalarOpt("kScaler");                  // constant scaler for contact stiffness
+    mu = m_inputData.GetScalarOpt("mu");                             // friction coefficient
+    nu = m_inputData.GetScalarOpt("nu");                             // slipping tolerance for friction
+    line_search = m_inputData.GetIntOpt("lineSearch");               // flag for enabling line search
+    knot_config = m_inputData.GetStringOpt("knotConfig");            // get initial knot configuration
 
-    RodLength = m_inputData.GetScalarOpt("RodLength");         // meter
-    helixradius = m_inputData.GetScalarOpt("helixradius");     // meter
-    gVector = m_inputData.GetVecOpt("gVector");                      // m/s^2
-    maxIter = m_inputData.GetIntOpt("maxIter");                // maximum number of iterations
-    helixpitch = m_inputData.GetScalarOpt("helixpitch");       // meter
-    rodRadius = m_inputData.GetScalarOpt("rodRadius");         // meter
-    numVertices = m_inputData.GetIntOpt("numVertices");        // int_num
-    youngM = m_inputData.GetScalarOpt("youngM");               // Pa
-    Poisson = m_inputData.GetScalarOpt("Poisson");             // dimensionless
-    deltaTime = m_inputData.GetScalarOpt("deltaTime");         // seconds
-    tol = m_inputData.GetScalarOpt("tol");                     // small number like 10e-7
-    stol = m_inputData.GetScalarOpt("stol");                   // small number, e.g. 0.1%
-    density = m_inputData.GetScalarOpt("density");             // kg/m^3
-    viscosity = m_inputData.GetScalarOpt("viscosity");         // viscosity in Pa-s
-    pull_time = m_inputData.GetScalarOpt("pullTime");          // get time of pulling
-    release_time = m_inputData.GetScalarOpt("releaseTime");    // get time of loosening
-    wait_time = m_inputData.GetScalarOpt("waitTime");          // get time of waiting
-    pull_speed = m_inputData.GetScalarOpt("pullSpeed");        // get speed of pulling
-    col_limit = m_inputData.GetScalarOpt("colLimit");          // distance limit for candidate set
-    delta = m_inputData.GetScalarOpt("delta");                 // distance tolerance for contact
-    k_scaler = m_inputData.GetScalarOpt("kScaler");            // constant scaler for contact stiffness
-    mu = m_inputData.GetScalarOpt("mu");                       // friction coefficient
-    nu = m_inputData.GetScalarOpt("nu");                       // slipping tolerance for friction
-    line_search = m_inputData.GetIntOpt("lineSearch");         // flag for enabling line search
-    knot_config = m_inputData.GetStringOpt("knotConfig");      // get initial knot configuration
+    shearM = youngM / (2.0 * (1.0 + Poisson));                             // shear modulus
 
-    shearM = youngM / (2.0 * (1.0 + Poisson));                       // shear modulus
+    data_rate = ceil(data_resolution / deltaTime);                         // iter resolution for recording data
+    alpha = 1.0;                                                           // newton step size
+    total_iters = 0;                                                       // total number of newton iterations
 
-    alpha = 1.0;                                                 // newton step size
-    total_iters = 0;                                             // total number of newton iterations
-
-    totalTime = wait_time + pull_time + release_time;            // total sim time
+    totalTime = wait_time + pull_time + release_time;                      // total sim time
 }
 
 world::~world() {
@@ -50,45 +50,47 @@ bool world::isRender() {
     return render;
 }
 
-void world::OpenFile(ofstream &outfile, string filename) {
-    if (saveData == false) return;
-
+void world::OpenFile(ofstream &outfile, string file_type) {
     int systemRet = system("mkdir datafiles"); //make the directory
     if (systemRet == -1) {
         cout << "Error in creating directory\n";
     }
 
     // Open an input file named after the current time
-    ostringstream name;
-    name << "datafiles/" << filename << "_" << knot_config << "_" << to_string(pull_time) << ".txt";
-
-    outfile.open(name.str().c_str());
+    ostringstream file_name;
+    file_name.precision(6);
+    file_name << "datafiles/" << file_type;
+    file_name << "_" << knot_config;
+    file_name << "_dt_" << deltaTime;
+    file_name << "_totalTime_" << totalTime;
+    file_name << "_mu_" << mu;
+    file_name << ".txt";
+    outfile.open(file_name.str().c_str());
     outfile.precision(10);
 }
 
 void world::outputNodeCoordinates(ofstream &outfile) {
-     Vector3d curr_node;
-     double curr_theta;
-     for (int i = 0; i < rod->nv-1; i++) {
-         curr_node = rod->getVertex(i);
-         curr_theta = rod->getTheta(i);
-         outfile << curr_node(0) << " " << curr_node(1) << " " <<
-                    curr_node(2) << " " << curr_theta << endl;
-     }
-     curr_node = rod->getVertex(rod->nv-1);
-     outfile << curr_node(0) << " " << curr_node(1) << " " <<
-                curr_node(2) << " " << 0.0 << endl;
+    if (timeStep % data_rate != 0) return;
+    Vector3d curr_node;
+    double curr_theta;
+    for (int i = 0; i < rod->nv-1; i++) {
+        curr_node = rod->getVertex(i);
+        curr_theta = rod->getTheta(i);
+        outfile << curr_node(0) << " " << curr_node(1) << " " <<
+                curr_node(2) << " " << curr_theta << endl;
+    }
+    curr_node = rod->getVertex(rod->nv-1);
+    outfile << curr_node(0) << " " << curr_node(1) << " " <<
+            curr_node(2) << " " << 0.0 << endl;
 }
 
 void world::CloseFile(ofstream &outfile) {
-    if (saveData == false)
-        return;
-
     outfile.close();
 }
 
 
-void world::CoutDataC(ofstream &outfile) {
+bool world::CoutDataC(ofstream &outfile) {
+    if (timeStep % data_rate != 0) return false;
     double f;
     double f1;
 
@@ -97,14 +99,15 @@ void world::CoutDataC(ofstream &outfile) {
 
     double end_to_end_length = (rod->getVertex(0) - rod->getVertex(numVertices - 1)).norm();
 
-    // 2piR method
-    double loop_circumference = 1.0 - end_to_end_length;
+    // 2piR method. WARNING: not the most accurate method for getting knot loop radius
+    double loop_circumference = RodLength - end_to_end_length;
     double radius = loop_circumference / (2. * M_PI);
 
     // Output pull forces here
     // Do not need to add endl here as it will be added when time spent is added
     outfile << currentTime << " " << f << " " << f1 << " " << radius << " " << end_to_end_length
-            << " " << iter << " " << total_iters;
+            << " " << iter << " " << total_iters << " ";
+    return true;
 }
 
 
@@ -147,6 +150,7 @@ void world::setRodStepper() {
     rod->updateTimeStep();
 
     currentTime = 0.0;
+    timeStep = 0;
 }
 
 // Setup geometry
@@ -234,6 +238,7 @@ void world::updateTimeStep() {
     printSimData();
 
     currentTime += deltaTime;
+    timeStep++;
 }
 
 void world::calculateForce() {

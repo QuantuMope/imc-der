@@ -14,8 +14,7 @@ viscosity          0.00
 render             1
 saveData           0
 recordNodes        0
-recordNodesStart   10.0
-recordNodesEnd     10.10
+dataResolution     0.01
 waitTime           2
 pullTime           60
 releaseTime        0
