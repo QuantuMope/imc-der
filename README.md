@@ -131,7 +131,7 @@ If this doesn't work, execute ```chmod +x run.sh``` prior to running.
 ### Citation
 If our work has helped your research, please cite the following paper.
 ```
-article{choi_imc_2021,
+@article{choi_imc_2021,
     author = {Choi, Andrew and Tong, Dezhong and Jawed, Mohammad K. and Joo, Jungseock},
     title = "{Implicit Contact Model for Discrete Elastic Rods in Knot Tying}",
     journal = {Journal of Applied Mechanics},
