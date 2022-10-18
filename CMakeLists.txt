@@ -42,7 +42,7 @@ add_executable(simDER
 target_link_libraries(simDER
         ${SYMENGINE_LIBRARIES}
         ${OPENGL_LIBRARIES}
-        ${GLUT_LIBRARY}
+        ${GLUT_LIBRARIES}
         ${MKL_LIBRARIES}
         Eigen3::Eigen
         lapack
