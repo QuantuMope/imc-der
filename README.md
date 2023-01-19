@@ -139,17 +139,22 @@ If our work has helped your research, please cite the following paper.
     number = {5},
     year = {2021},
     month = {03},
+    issn = {0021-8936},
+    doi = {10.1115/1.4050238},
+    url = {https://doi.org/10.1115/1.4050238},
 }
 
-@misc{tong_imc_2022,
-  author = {Tong, Dezhong and Choi, Andrew and Joo, Jungseock and Jawed, M. Khalid},
-  title = {A Fully Implicit Method for Robust Frictional Contact Handling in Elastic Rods},
-  publisher = {arXiv},
-  year = {2022},
-  doi = {10.48550/ARXIV.2205.10309},
-  url = {https://arxiv.org/abs/2205.10309},
+@article{tong_imc_2022,
+    author = {Dezhong Tong and Andrew Choi and Jungseock Joo and M. Khalid Jawed},
+    title = {A fully implicit method for robust frictional contact handling in elastic rods},
+    journal = {Extreme Mechanics Letters},
+    volume = {58},
+    pages = {101924},
+    year = {2023},
+    issn = {2352-4316},
+    doi = {https://doi.org/10.1016/j.eml.2022.101924},
+    url = {https://www.sciencedirect.com/science/article/pii/S2352431622002000},
 }
-
 ```
 
 
