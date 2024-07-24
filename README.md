@@ -1,5 +1,7 @@
 ## [Implicit Contact Model (IMC)](https://asmedigitalcollection.asme.org/appliedmechanics/article/88/5/051010/1099667/Implicit-Contact-Model-for-Discrete-Elastic-Rods)
 
+NOTE: It is now recommended for users to use our general soft sim framework [DisMech](https://github.com/StructuresComp/dismech-rods) to simulate the knot examples from this paper as that codebase contains many improvements over this outdated repo.
+***
 Contact model for 3D elastic rod simulations. Uses [Discrete Elastic Rod (DER)](http://www.cs.columbia.edu/cg/pdfs/143-rods.pdf) framework and incorporates contact and friction. Formulates a contact potential as a twice differentiable analytical expression through smooth approximations 
 and uses the subsequent energy gradient (forces) and Hessian (force Jacobian) to simulate contact and friction. Simulation examples using IMC to resolve contact and friction can be seen below in Figure 1.
 
